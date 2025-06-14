@@ -2302,6 +2302,540 @@ async def complete_exam(
             raise e
         raise HTTPException(status_code=500, detail="Failed to complete exam")
 
+# CERTIFICATE ENDPOINTS
+
+@api_router.get("/certificates/my")
+async def get_my_certificates(current_user = Depends(get_current_user)):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can view certificates")
+        
+        certificates_cursor = db.certificates.find({"student_id": current_user["id"]})
+        certificates = await certificates_cursor.to_list(length=None)
+        
+        return serialize_doc(certificates)
+    
+    except Exception as e:
+        logger.error(f"Get certificates error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve certificates")
+
+@api_router.get("/certificates/{cert_id}/verify")
+async def verify_certificate(cert_id: str):
+    try:
+        certificate = await db.certificates.find_one({"id": cert_id})
+        if not certificate:
+            raise HTTPException(status_code=404, detail="Certificate not found")
+        
+        # Get student details
+        student = await db.users.find_one({"id": certificate["student_id"]})
+        
+        verification_data = {
+            "certificate_number": certificate["certificate_number"],
+            "student_name": f"{student['first_name']} {student['last_name']}" if student else "Unknown",
+            "issue_date": certificate["issue_date"],
+            "expiry_date": certificate.get("expiry_date"),
+            "status": certificate["status"],
+            "is_valid": certificate["status"] == "issued" and 
+                       (not certificate.get("expiry_date") or 
+                        datetime.utcnow() < certificate["expiry_date"])
+        }
+        
+        return verification_data
+    
+    except Exception as e:
+        logger.error(f"Verify certificate error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to verify certificate")
+
+# NOTIFICATION ENDPOINTS
+
+@api_router.get("/notifications/my")
+async def get_my_notifications(current_user = Depends(get_current_user)):
+    try:
+        notifications_cursor = db.notifications.find({"user_id": current_user["id"]}).sort("created_at", -1)
+        notifications = await notifications_cursor.to_list(length=None)
+        
+        return serialize_doc(notifications)
+    
+    except Exception as e:
+        logger.error(f"Get notifications error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve notifications")
+
+@api_router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Verify notification ownership
+        notification = await db.notifications.find_one({
+            "id": notification_id,
+            "user_id": current_user["id"]
+        })
+        if not notification:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        # Mark as read
+        await db.notifications.update_one(
+            {"id": notification_id},
+            {"$set": {"is_read": True}}
+        )
+        
+        return {"message": "Notification marked as read"}
+    
+    except Exception as e:
+        logger.error(f"Mark notification read error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to mark notification as read")
+
+@api_router.post("/notifications/mark-all-read")
+async def mark_all_notifications_read(current_user = Depends(get_current_user)):
+    try:
+        await db.notifications.update_many(
+            {"user_id": current_user["id"], "is_read": False},
+            {"$set": {"is_read": True}}
+        )
+        
+        return {"message": "All notifications marked as read"}
+    
+    except Exception as e:
+        logger.error(f"Mark all notifications read error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to mark all notifications as read")
+
+# ANALYTICS ENDPOINTS
+
+@api_router.get("/analytics/student-progress/{student_id}")
+async def get_student_progress(
+    student_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Verify access
+        if current_user["role"] == "student" and current_user["id"] != student_id:
+            raise HTTPException(status_code=403, detail="Can only view your own progress")
+        elif current_user["role"] not in ["student", "teacher", "manager"]:
+            raise HTTPException(status_code=403, detail="Unauthorized to view student progress")
+        
+        # Calculate metrics
+        metrics = await calculate_student_metrics(student_id)
+        
+        # Generate chart if needed
+        if metrics["total_enrollments"] > 0:
+            chart_data = await generate_student_analytics_chart({
+                "student_name": "Student Progress",
+                "theory_progress": metrics["course_progress"].get("theory", 0),
+                "park_progress": metrics["course_progress"].get("park", 0),
+                "road_progress": metrics["course_progress"].get("road", 0),
+                "quiz_scores": metrics["quiz_scores"],
+                "session_attendance": metrics["session_attendance"],
+                "learning_time": metrics["learning_time"]
+            })
+            metrics["chart_data"] = chart_data
+        
+        return metrics
+    
+    except Exception as e:
+        logger.error(f"Get student progress error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve student progress")
+
+@api_router.get("/analytics/school-overview")
+async def get_school_overview(current_user = Depends(get_current_user)):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can view school analytics")
+        
+        # Get manager's school
+        school = await db.driving_schools.find_one({"manager_id": current_user["id"]})
+        if not school:
+            raise HTTPException(status_code=404, detail="Manager has no driving school")
+        
+        # Calculate school metrics
+        enrollments_cursor = db.enrollments.find({"driving_school_id": school["id"]})
+        enrollments = await enrollments_cursor.to_list(length=None)
+        
+        teachers_cursor = db.teachers.find({"driving_school_id": school["id"]})
+        teachers = await teachers_cursor.to_list(length=None)
+        
+        reviews_cursor = db.reviews.find({"driving_school_id": school["id"]})
+        reviews = await reviews_cursor.to_list(length=None)
+        
+        metrics = {
+            "school_name": school["name"],
+            "total_enrollments": len(enrollments),
+            "active_enrollments": len([e for e in enrollments if e["enrollment_status"] == "approved"]),
+            "pending_enrollments": len([e for e in enrollments if e["enrollment_status"] == "pending_approval"]),
+            "total_teachers": len(teachers),
+            "approved_teachers": len([t for t in teachers if t["is_approved"]]),
+            "total_reviews": len(reviews),
+            "average_rating": sum([r["rating"] for r in reviews]) / len(reviews) if reviews else 0,
+            "revenue_estimate": len([e for e in enrollments if e["enrollment_status"] == "approved"]) * school["price"]
+        }
+        
+        return metrics
+    
+    except Exception as e:
+        logger.error(f"Get school overview error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve school analytics")
+
+@api_router.get("/analytics/teacher-performance/{teacher_id}")
+async def get_teacher_performance(
+    teacher_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can view teacher performance")
+        
+        # Get teacher
+        teacher = await db.teachers.find_one({"id": teacher_id})
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        
+        # Verify manager owns this teacher's school
+        school = await db.driving_schools.find_one({
+            "id": teacher["driving_school_id"],
+            "manager_id": current_user["id"]
+        })
+        if not school:
+            raise HTTPException(status_code=403, detail="Unauthorized to view this teacher's performance")
+        
+        # Calculate teacher metrics
+        sessions_cursor = db.sessions.find({"teacher_id": teacher_id})
+        sessions = await sessions_cursor.to_list(length=None)
+        
+        completed_sessions = [s for s in sessions if s["status"] == "completed"]
+        
+        reviews_cursor = db.reviews.find({"teacher_id": teacher_id})
+        reviews = await reviews_cursor.to_list(length=None)
+        
+        metrics = {
+            "teacher_id": teacher_id,
+            "total_sessions": len(sessions),
+            "completed_sessions": len(completed_sessions),
+            "completion_rate": (len(completed_sessions) / len(sessions) * 100) if sessions else 0,
+            "total_reviews": len(reviews),
+            "average_rating": sum([r["rating"] for r in reviews]) / len(reviews) if reviews else 0,
+            "recent_sessions": serialize_doc(sessions[-10:])  # Last 10 sessions
+        }
+        
+        return metrics
+    
+    except Exception as e:
+        logger.error(f"Get teacher performance error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve teacher performance")
+
+# REVIEW ENDPOINTS
+
+@api_router.post("/reviews")
+async def create_review(
+    review_data: ReviewCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can create reviews")
+        
+        # Verify enrollment exists and is completed
+        enrollment = await db.enrollments.find_one({
+            "id": review_data.enrollment_id,
+            "student_id": current_user["id"],
+            "enrollment_status": "approved"
+        })
+        if not enrollment:
+            raise HTTPException(status_code=404, detail="Enrollment not found or not completed")
+        
+        # Check if review already exists
+        existing_review = await db.reviews.find_one({
+            "student_id": current_user["id"],
+            "enrollment_id": review_data.enrollment_id
+        })
+        if existing_review:
+            raise HTTPException(status_code=400, detail="Review already exists for this enrollment")
+        
+        # Create review
+        review_id = str(uuid.uuid4())
+        review_doc = {
+            "id": review_id,
+            "student_id": current_user["id"],
+            "enrollment_id": review_data.enrollment_id,
+            "driving_school_id": enrollment["driving_school_id"],
+            "teacher_id": None,  # Could be assigned to specific teacher
+            "rating": review_data.rating,
+            "comment": review_data.comment,
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.reviews.insert_one(review_doc)
+        
+        # Update school rating
+        school_reviews_cursor = db.reviews.find({"driving_school_id": enrollment["driving_school_id"]})
+        school_reviews = await school_reviews_cursor.to_list(length=None)
+        
+        if school_reviews:
+            avg_rating = sum([r["rating"] for r in school_reviews]) / len(school_reviews)
+            await db.driving_schools.update_one(
+                {"id": enrollment["driving_school_id"]},
+                {
+                    "$set": {
+                        "rating": avg_rating,
+                        "total_reviews": len(school_reviews)
+                    }
+                }
+            )
+        
+        return {"review_id": review_id, "message": "Review created successfully"}
+    
+    except Exception as e:
+        logger.error(f"Create review error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to create review")
+
+@api_router.get("/reviews/school/{school_id}")
+async def get_school_reviews(school_id: str):
+    try:
+        # Get reviews for the school
+        reviews_cursor = db.reviews.find({"driving_school_id": school_id}).sort("created_at", -1)
+        reviews = await reviews_cursor.to_list(length=None)
+        
+        # Get student names for reviews
+        for review in reviews:
+            student = await db.users.find_one({"id": review["student_id"]})
+            if student:
+                review["student_name"] = f"{student['first_name']} {student['last_name']}"
+            else:
+                review["student_name"] = "Anonymous"
+        
+        return serialize_doc(reviews)
+    
+    except Exception as e:
+        logger.error(f"Get school reviews error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve school reviews")
+
+# COURSE MANAGEMENT ENDPOINTS
+
+@api_router.post("/courses/{course_id}/complete-session")
+async def complete_course_session(
+    course_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] not in ["student", "teacher", "manager"]:
+            raise HTTPException(status_code=403, detail="Unauthorized to complete sessions")
+        
+        # Get course
+        course = await db.courses.find_one({"id": course_id})
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        # Increment completed sessions
+        new_completed = course["completed_sessions"] + 1
+        
+        # Update course
+        update_data = {
+            "completed_sessions": new_completed,
+            "updated_at": datetime.utcnow()
+        }
+        
+        # Check if course is completed
+        if new_completed >= course["total_sessions"]:
+            update_data["status"] = CourseStatus.COMPLETED
+            update_data["exam_status"] = ExamStatus.AVAILABLE
+        
+        await db.courses.update_one({"id": course_id}, {"$set": update_data})
+        
+        # Update course availability
+        await update_course_availability(course["enrollment_id"])
+        
+        return {"message": "Session completed successfully"}
+    
+    except Exception as e:
+        logger.error(f"Complete course session error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to complete session")
+
+@api_router.post("/courses/{course_id}/take-exam")
+async def take_course_exam(
+    course_id: str,
+    score: float = Form(...),
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can take exams")
+        
+        # Get course
+        course = await db.courses.find_one({"id": course_id})
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        if course["exam_status"] != ExamStatus.AVAILABLE:
+            raise HTTPException(status_code=400, detail="Exam is not available for this course")
+        
+        # Determine pass/fail
+        passing_score = 70.0
+        passed = score >= passing_score
+        
+        # Update course
+        await db.courses.update_one(
+            {"id": course_id},
+            {
+                "$set": {
+                    "exam_status": ExamStatus.PASSED if passed else ExamStatus.FAILED,
+                    "exam_score": score,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Update course availability for next course
+        if passed:
+            await update_course_availability(course["enrollment_id"])
+        
+        return {"message": "Exam completed successfully", "passed": passed, "score": score}
+    
+    except Exception as e:
+        logger.error(f"Take course exam error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to take exam")
+
+# DASHBOARD ENDPOINTS
+
+@api_router.get("/dashboard/{role}")
+async def get_dashboard(
+    role: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != role:
+            raise HTTPException(status_code=403, detail="Role mismatch")
+        
+        dashboard_data = {}
+        
+        if role == "student":
+            # Get student's enrollments with courses
+            enrollments_cursor = db.enrollments.find({"student_id": current_user["id"]})
+            enrollments = await enrollments_cursor.to_list(length=None)
+            
+            for enrollment in enrollments:
+                # Get school details
+                school = await db.driving_schools.find_one({"id": enrollment["driving_school_id"]})
+                enrollment["school_name"] = school["name"] if school else "Unknown School"
+                
+                # Get courses
+                courses_cursor = db.courses.find({"enrollment_id": enrollment["id"]})
+                courses = await courses_cursor.to_list(length=None)
+                enrollment["courses"] = serialize_doc(courses)
+            
+            dashboard_data["enrollments"] = serialize_doc(enrollments)
+            
+        elif role == "teacher":
+            # Get teacher's school and students
+            teacher = await db.teachers.find_one({"user_id": current_user["id"]})
+            if teacher:
+                school = await db.driving_schools.find_one({"id": teacher["driving_school_id"]})
+                dashboard_data["school"] = serialize_doc(school)
+                
+                # Get assigned sessions
+                sessions_cursor = db.sessions.find({"teacher_id": teacher["id"]})
+                sessions = await sessions_cursor.to_list(length=None)
+                dashboard_data["sessions"] = serialize_doc(sessions)
+            
+        elif role == "manager":
+            # Get manager's school
+            school = await db.driving_schools.find_one({"manager_id": current_user["id"]})
+            if school:
+                dashboard_data["school"] = serialize_doc(school)
+                
+                # Get enrollments
+                enrollments_cursor = db.enrollments.find({"driving_school_id": school["id"]})
+                enrollments = await enrollments_cursor.to_list(length=None)
+                dashboard_data["enrollments"] = serialize_doc(enrollments)
+                
+                # Get teachers
+                teachers_cursor = db.teachers.find({"driving_school_id": school["id"]})
+                teachers = await teachers_cursor.to_list(length=None)
+                dashboard_data["teachers"] = serialize_doc(teachers)
+        
+        elif role == "external_expert":
+            # Get expert's exams
+            expert = await db.external_experts.find_one({"user_id": current_user["id"]})
+            if expert:
+                exams_cursor = db.exam_schedules.find({"external_expert_id": expert["id"]})
+                exams = await exams_cursor.to_list(length=None)
+                dashboard_data["exams"] = serialize_doc(exams)
+        
+        return dashboard_data
+    
+    except Exception as e:
+        logger.error(f"Get dashboard error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve dashboard data")
+
+# PAYMENT ENDPOINTS
+
+@api_router.post("/payments/complete")
+async def complete_payment(
+    enrollment_id: str = Form(...),
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Get enrollment
+        enrollment = await db.enrollments.find_one({
+            "id": enrollment_id,
+            "student_id": current_user["id"]
+        })
+        if not enrollment:
+            raise HTTPException(status_code=404, detail="Enrollment not found")
+        
+        # Simulate payment completion
+        await db.enrollments.update_one(
+            {"id": enrollment_id},
+            {"$set": {"enrollment_status": EnrollmentStatus.PENDING_APPROVAL}}
+        )
+        
+        # Create notification for manager
+        school = await db.driving_schools.find_one({"id": enrollment["driving_school_id"]})
+        if school:
+            notification_doc = {
+                "id": str(uuid.uuid4()),
+                "user_id": school["manager_id"],
+                "type": "payment_completed",
+                "title": "Payment Completed",
+                "message": f"Student has completed payment for enrollment at {school['name']}",
+                "is_read": False,
+                "metadata": {"enrollment_id": enrollment_id},
+                "created_at": datetime.utcnow()
+            }
+            await db.notifications.insert_one(notification_doc)
+        
+        return {"message": "Payment completed successfully"}
+    
+    except Exception as e:
+        logger.error(f"Complete payment error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to complete payment")
+
 # Include the API router
 app.include_router(api_router)
 
