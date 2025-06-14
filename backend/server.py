@@ -2836,6 +2836,237 @@ async def complete_payment(
             raise e
         raise HTTPException(status_code=500, detail="Failed to complete payment")
 
+# MISSING ENDPOINTS THAT WERE IDENTIFIED IN TESTING
+
+@api_router.get("/documents")
+async def get_user_documents(current_user = Depends(get_current_user)):
+    try:
+        documents_cursor = db.documents.find({"user_id": current_user["id"]})
+        documents = await documents_cursor.to_list(length=None)
+        
+        return serialize_doc(documents)
+    
+    except Exception as e:
+        logger.error(f"Get documents error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve documents")
+
+@api_router.get("/enrollments/my")
+async def get_my_enrollments_fixed(current_user = Depends(get_current_user)):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can view enrollments")
+        
+        # Get student's enrollments
+        enrollments_cursor = db.enrollments.find({"student_id": current_user["id"]})
+        enrollments = await enrollments_cursor.to_list(length=None)
+        
+        # Get school details for each enrollment
+        for enrollment in enrollments:
+            school = await db.driving_schools.find_one({"id": enrollment["driving_school_id"]})
+            if school:
+                enrollment["school_name"] = school["name"]
+                enrollment["school_address"] = school["address"]
+                enrollment["school_price"] = school["price"]
+            
+            # Get courses for this enrollment
+            courses_cursor = db.courses.find({"enrollment_id": enrollment["id"]})
+            courses = await courses_cursor.to_list(length=None)
+            enrollment["courses"] = serialize_doc(courses)
+        
+        return serialize_doc(enrollments)
+    
+    except Exception as e:
+        logger.error(f"Get enrollments error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve enrollments")
+
+@api_router.post("/documents/verify/{document_id}")
+async def verify_document(
+    document_id: str,
+    is_verified: bool = Form(...),
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can verify documents")
+        
+        # Get document
+        document = await db.documents.find_one({"id": document_id})
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Update verification status
+        await db.documents.update_one(
+            {"id": document_id},
+            {"$set": {"is_verified": is_verified}}
+        )
+        
+        return {"message": "Document verification updated successfully"}
+    
+    except Exception as e:
+        logger.error(f"Verify document error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to verify document")
+
+@api_router.get("/analytics/student-progress/{student_id}")
+async def get_student_progress_fixed(
+    student_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Verify access permissions
+        if current_user["role"] == "student" and current_user["id"] != student_id:
+            raise HTTPException(status_code=403, detail="Can only view your own progress")
+        elif current_user["role"] not in ["student", "teacher", "manager"]:
+            raise HTTPException(status_code=403, detail="Unauthorized to view student progress")
+        
+        # Calculate student metrics
+        metrics = await calculate_student_metrics(student_id)
+        
+        return metrics
+    
+    except Exception as e:
+        logger.error(f"Get student progress error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve student progress")
+
+# AUTO-GENERATE CERTIFICATE FOR COMPLETED STUDENTS
+async def check_and_generate_certificate(enrollment_id: str):
+    """Check if student has completed all courses and generate certificate"""
+    try:
+        # Get all courses for this enrollment
+        courses_cursor = db.courses.find({"enrollment_id": enrollment_id})
+        courses = await courses_cursor.to_list(length=None)
+        
+        # Check if all courses are completed and exams passed
+        all_completed = True
+        for course in courses:
+            if course["exam_status"] != ExamStatus.PASSED:
+                all_completed = False
+                break
+        
+        if all_completed:
+            # Get enrollment and student details
+            enrollment = await db.enrollments.find_one({"id": enrollment_id})
+            student = await db.users.find_one({"id": enrollment["student_id"]})
+            school = await db.driving_schools.find_one({"id": enrollment["driving_school_id"]})
+            
+            # Check if certificate already exists
+            existing_cert = await db.certificates.find_one({"enrollment_id": enrollment_id})
+            if not existing_cert:
+                # Generate certificate
+                cert_id = str(uuid.uuid4())
+                cert_number = f"DZ-{student['state'][:3].upper()}-{int(datetime.utcnow().timestamp())}"
+                
+                certificate_doc = {
+                    "id": cert_id,
+                    "student_id": enrollment["student_id"],
+                    "enrollment_id": enrollment_id,
+                    "certificate_number": cert_number,
+                    "issue_date": datetime.utcnow(),
+                    "expiry_date": datetime.utcnow() + timedelta(days=5*365),  # 5 years
+                    "status": CertificateStatus.GENERATED,
+                    "pdf_url": None,
+                    "qr_code": None,
+                    "created_at": datetime.utcnow()
+                }
+                
+                await db.certificates.insert_one(certificate_doc)
+                
+                # Send notification
+                notification_doc = {
+                    "id": str(uuid.uuid4()),
+                    "user_id": enrollment["student_id"],
+                    "type": NotificationType.CERTIFICATE_READY,
+                    "title": "Certificate Ready!",
+                    "message": f"Congratulations! Your driving certificate is ready for download.",
+                    "is_read": False,
+                    "metadata": {"certificate_id": cert_id, "certificate_number": cert_number},
+                    "created_at": datetime.utcnow()
+                }
+                await db.notifications.insert_one(notification_doc)
+                
+                return cert_id
+        
+        return None
+    
+    except Exception as e:
+        logger.error(f"Certificate generation error: {str(e)}")
+        return None
+
+# Updated exam completion to trigger certificate generation
+@api_router.post("/exams/{exam_id}/complete")
+async def complete_exam_updated(
+    exam_id: str,
+    score: float = Form(...),
+    notes: str = Form(""),
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "external_expert":
+            raise HTTPException(status_code=403, detail="Only external experts can complete exams")
+        
+        # Get exam
+        exam = await db.exam_schedules.find_one({"id": exam_id})
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        
+        # Verify expert ownership
+        expert = await db.external_experts.find_one({"user_id": current_user["id"]})
+        if not expert or exam["external_expert_id"] != expert["id"]:
+            raise HTTPException(status_code=403, detail="Unauthorized to complete this exam")
+        
+        # Determine pass/fail
+        passing_score = 70.0
+        passed = score >= passing_score
+        
+        # Update exam
+        await db.exam_schedules.update_one(
+            {"id": exam_id},
+            {
+                "$set": {
+                    "status": ExamStatus.PASSED if passed else ExamStatus.FAILED,
+                    "score": score,
+                    "notes": notes
+                }
+            }
+        )
+        
+        # Update course exam status
+        await db.courses.update_one(
+            {"id": exam["course_id"]},
+            {
+                "$set": {
+                    "exam_status": ExamStatus.PASSED if passed else ExamStatus.FAILED,
+                    "exam_score": score,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Update course availability for next course
+        course = await db.courses.find_one({"id": exam["course_id"]})
+        if course and passed:
+            await update_course_availability(course["enrollment_id"])
+            
+            # Check if all courses completed and generate certificate
+            cert_id = await check_and_generate_certificate(course["enrollment_id"])
+            if cert_id:
+                logger.info(f"Certificate generated: {cert_id}")
+        
+        return {"message": "Exam completed successfully", "passed": passed}
+    
+    except Exception as e:
+        logger.error(f"Complete exam error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to complete exam")
+
 # Include the API router
 app.include_router(api_router)
 
