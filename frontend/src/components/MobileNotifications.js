@@ -152,10 +152,10 @@ const MobileNotifications = ({
 
   const getPriorityColor = (priority) => {
     const colors = {
-      low: 'bg-green-100 text-green-800',
-      medium: 'bg-yellow-100 text-yellow-800',
-      high: 'bg-orange-100 text-orange-800',
-      urgent: 'bg-red-100 text-red-800'
+      low: 'bg-success bg-opacity-25 text-success',
+      medium: 'bg-warning bg-opacity-25 text-warning',
+      high: 'bg-info bg-opacity-25 text-info',
+      urgent: 'bg-danger bg-opacity-25 text-danger'
     };
     return colors[priority] || colors.medium;
   };
