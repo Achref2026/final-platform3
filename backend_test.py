@@ -635,7 +635,8 @@ class DrivingSchoolAPITester:
 
 def main():
     # Setup
-    tester = DrivingSchoolAPITester()
+    backend_url = os.environ.get('BACKEND_URL', 'https://22e85084-a6f7-4bae-950b-e4a68d1a6572.preview.emergentagent.com')
+    tester = DrivingSchoolAPITester(backend_url)
     timestamp = int(time.time())
     test_email = f"test_user_{timestamp}@example.com"
     test_password = "TestPass123!"
@@ -683,6 +684,25 @@ def main():
         # Test creating a school (becomes manager)
         if tester.test_create_driving_school(school_name):
             print("✅ School creation successful")
+            
+            # Test manager-specific functionality
+            print("\n🔍 TESTING MANAGER USER FLOW\n")
+            
+            # Test adding a teacher
+            tester.test_add_teacher()
+            
+            # Test getting teachers
+            tester.test_get_my_teachers()
+            
+            # Test creating a quiz
+            tester.test_create_quiz()
+            
+            # Test getting quizzes
+            tester.test_get_quizzes()
+            
+            # Test school analytics
+            tester.test_get_school_analytics()
+            
         else:
             print("❌ School creation failed")
             
@@ -691,6 +711,34 @@ def main():
                 first_school_id = schools_data['schools'][0]['id']
                 if tester.test_enroll_in_school(first_school_id):
                     print("✅ Enrollment successful")
+                    
+                    # Test student-specific functionality
+                    print("\n🔍 TESTING STUDENT USER FLOW\n")
+                    
+                    # Test document upload
+                    tester.test_upload_document()
+                    
+                    # Test getting documents
+                    tester.test_get_documents()
+                    
+                    # Test getting dashboard
+                    tester.test_get_dashboard()
+                    
+                    # Test taking a quiz
+                    tester.test_take_quiz()
+                    
+                    # Test scheduling a session
+                    tester.test_schedule_session()
+                    
+                    # Test getting sessions
+                    tester.test_get_my_sessions()
+                    
+                    # Test getting certificates
+                    tester.test_get_my_certificates()
+                    
+                    # Test creating a review
+                    tester.test_create_review()
+                    
                 else:
                     print("❌ Enrollment failed")
     
@@ -701,6 +749,15 @@ def main():
     else:
         print("❌ Failed to retrieve enrollments")
     
+    # Test notifications
+    notifications_success, notifications_data = tester.test_get_my_notifications()
+    if notifications_success:
+        print(f"✅ Retrieved notifications")
+        if tester.notification_id:
+            tester.test_mark_notification_read()
+    else:
+        print("❌ Failed to retrieve notifications")
+    
     # Print results
     print(f"\n📊 Tests passed: {tester.tests_passed}/{tester.tests_run}")
     print(f"Pass rate: {(tester.tests_passed / tester.tests_run * 100) if tester.tests_run > 0 else 0:.2f}%")
@@ -709,24 +766,48 @@ def main():
     print("\n📋 SUMMARY OF FINDINGS:")
     print("✅ Working features:")
     print("  - Backend health check")
-    print("  - States API (returns 58 Algerian states)")
-    print("  - User registration")
-    print("  - Basic API endpoints")
+    if states_success:
+        print("  - States API (returns 58 Algerian states)")
+    if tester.user_id:
+        print("  - User registration/login")
+    if schools_success:
+        print("  - Driving schools listing")
+    if tester.school_id:
+        print("  - School creation")
+    if tester.enrollment_id:
+        print("  - Enrollment process")
+    if tester.teacher_id:
+        print("  - Teacher management")
+    if tester.quiz_id:
+        print("  - Quiz creation")
+    if tester.document_id:
+        print("  - Document upload")
+    if tester.notification_id:
+        print("  - Notifications")
+    if tester.review_id:
+        print("  - Reviews")
     
     print("\n❌ Issues/Not working:")
-    if not schools_data.get('schools') or len(schools_data.get('schools', [])) == 0:
-        print("  - No driving schools in the database")
-    
+    if not states_success:
+        print("  - States API not working")
+    if not tester.user_id:
+        print("  - User registration/login not working")
+    if not schools_success or not schools_data.get('schools') or len(schools_data.get('schools', [])) == 0:
+        print("  - No driving schools in the database or API not working")
     if tester.user_role == 'guest' and not tester.school_id:
         print("  - School creation not working")
-    
-    if not tester.enrollment_id:
+    if not tester.enrollment_id and tester.user_role == 'student':
         print("  - Enrollment process not working")
-    
-    print("  - Authentication issues with some endpoints (401 errors)")
-    print("  - External expert registration")
-    print("  - Quiz functionality")
-    print("  - Notifications")
+    if not tester.teacher_id and tester.user_role == 'manager':
+        print("  - Teacher management not working")
+    if not tester.quiz_id and tester.user_role == 'manager':
+        print("  - Quiz functionality not working")
+    if not tester.document_id and tester.user_role == 'student':
+        print("  - Document upload not working")
+    if not tester.notification_id:
+        print("  - Notifications not working")
+    if not tester.review_id and tester.user_role == 'student':
+        print("  - Reviews not working")
     
     return 0 if tester.tests_passed == tester.tests_run else 1
 
