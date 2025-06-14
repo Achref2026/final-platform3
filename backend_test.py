@@ -634,18 +634,20 @@ class DrivingSchoolAPITester:
             200
         )
         
-    def test_get_student_progress(self):
-        """Test getting student progress analytics"""
-        if not self.user_id or self.user_role not in ['student', 'manager', 'teacher']:
-            print("Skipping student progress - no user ID or not a student/manager/teacher")
-            return False, {}
-            
-        return self.run_test(
-            "Get Student Progress",
+    def test_get_my_notifications(self):
+        """Test getting user's notifications"""
+        success, response = self.run_test(
+            "Get My Notifications",
             "GET",
-            f"api/analytics/student-progress/{self.user_id}",
+            "api/notifications/my",
             200
         )
+        
+        if success and len(response) > 0:
+            self.notification_id = response[0]['id']
+            print(f"Found notification ID: {self.notification_id}")
+        
+        return success, response
         
     def test_get_school_analytics(self):
         """Test getting school analytics"""
