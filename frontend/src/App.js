@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './App.css';
 
 // Import components
@@ -144,6 +146,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
   // States and search
   const [states] = useState(ALGERIAN_STATES);
   const [selectedState, setSelectedState] = useState('');
@@ -566,199 +569,236 @@ function App() {
     }
   };
 
-  // Executive Navigation
-  const renderExecutiveNavigation = () => (
-    <nav className="executive-nav">
-      <div className="executive-nav-container">
-        <a href="#" className="executive-logo" onClick={() => setCurrentPage('home')}>
-          <div className="executive-logo-icon">🚗</div>
+  // Navigation Component
+  const renderNavigation = () => (
+    <nav className="navbar navbar-expand-lg navbar-custom fixed-top">
+      <div className="container">
+        <a 
+          href="#" 
+          className="navbar-brand navbar-brand-custom d-flex align-items-center"
+          onClick={() => setCurrentPage('home')}
+        >
+          <div className="me-3 p-2 bg-primary rounded" style={{fontSize: '1.5rem'}}>
+            🚗
+          </div>
           <div>
-            <div>{t.appName}</div>
+            <div className="fw-bold">{t.appName}</div>
             <div style={{fontSize: '0.75rem', opacity: 0.8}}>{t.tagline}</div>
           </div>
         </a>
         
-        <div className="executive-nav-menu">
-          <a 
-            href="#" 
-            className={`executive-nav-link ${currentPage === 'home' ? 'active' : ''}`}
-            onClick={() => setCurrentPage('home')}
-          >
-            {t.home}
-          </a>
-          <a 
-            href="#" 
-            className={`executive-nav-link ${currentPage === 'find-schools' ? 'active' : ''}`}
-            onClick={() => {
-              setCurrentPage('find-schools');
-              fetchDrivingSchools();
-            }}
-          >
-            {t.findSchools}
-          </a>
-          {user && user.role !== 'guest' && (
-            <a 
-              href="#" 
-              className={`executive-nav-link ${currentPage === 'dashboard' ? 'active' : ''}`}
-              onClick={() => {
-                setCurrentPage('dashboard');
-                fetchDashboardData();
-              }}
-            >
-              {t.dashboard}
-            </a>
-          )}
-          <a 
-            href="#" 
-            className="executive-nav-link"
-            onClick={() => setShowOfflineQuiz(true)}
-          >
-            {t.offlineQuiz}
-          </a>
-        </div>
+        <button 
+          className="navbar-toggler" 
+          type="button" 
+          data-bs-toggle="collapse" 
+          data-bs-target="#navbarNav"
+        >
+          <span className="navbar-toggler-icon"></span>
+        </button>
         
-        <div className="executive-nav-actions">
-          <select
-            value={language}
-            onChange={(e) => changeLanguage(e.target.value)}
-            className="executive-language-selector"
-          >
-            <option value="en">English</option>
-            <option value="ar">العربية</option>
-            <option value="fr">Français</option>
-          </select>
+        <div className="collapse navbar-collapse" id="navbarNav">
+          <ul className="navbar-nav me-auto">
+            <li className="nav-item">
+              <a 
+                href="#" 
+                className={`nav-link nav-link-custom ${currentPage === 'home' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('home')}
+              >
+                {t.home}
+              </a>
+            </li>
+            <li className="nav-item">
+              <a 
+                href="#" 
+                className={`nav-link nav-link-custom ${currentPage === 'find-schools' ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentPage('find-schools');
+                  fetchDrivingSchools();
+                }}
+              >
+                {t.findSchools}
+              </a>
+            </li>
+            {user && user.role !== 'guest' && (
+              <li className="nav-item">
+                <a 
+                  href="#" 
+                  className={`nav-link nav-link-custom ${currentPage === 'dashboard' ? 'active' : ''}`}
+                  onClick={() => {
+                    setCurrentPage('dashboard');
+                    fetchDashboardData();
+                  }}
+                >
+                  {t.dashboard}
+                </a>
+              </li>
+            )}
+            <li className="nav-item">
+              <a 
+                href="#" 
+                className="nav-link nav-link-custom"
+                onClick={() => setShowOfflineQuiz(true)}
+              >
+                {t.offlineQuiz}
+              </a>
+            </li>
+          </ul>
           
-          {user ? (
-            <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-              <div style={{color: 'white', fontSize: '0.875rem'}}>
-                {t.welcome}, {user.first_name}
+          <div className="d-flex align-items-center gap-3">
+            <select
+              value={language}
+              onChange={(e) => changeLanguage(e.target.value)}
+              className="language-selector"
+            >
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+              <option value="fr">Français</option>
+            </select>
+            
+            {user ? (
+              <div className="d-flex align-items-center gap-3">
+                <div className="text-white small">
+                  {t.welcome}, {user.first_name}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="btn btn-outline-light btn-sm"
+                >
+                  {t.logout}
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="btn-executive btn-secondary"
-              >
-                {t.logout}
-              </button>
-            </div>
-          ) : (
-            <div style={{display: 'flex', gap: '1rem'}}>
-              <button
-                onClick={() => {
-                  setAuthMode('login');
-                  setShowAuthModal(true);
-                }}
-                className="btn-executive btn-outline"
-              >
-                {t.login}
-              </button>
-              <button
-                onClick={() => {
-                  setAuthMode('register');
-                  setShowAuthModal(true);
-                }}
-                className="btn-executive btn-primary"
-              >
-                {t.register}
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="d-flex gap-2">
+                <button
+                  onClick={() => {
+                    setAuthMode('login');
+                    setShowAuthModal(true);
+                  }}
+                  className="btn btn-outline-light btn-sm"
+                >
+                  {t.login}
+                </button>
+                <button
+                  onClick={() => {
+                    setAuthMode('register');
+                    setShowAuthModal(true);
+                  }}
+                  className="btn btn-light btn-sm"
+                >
+                  {t.register}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </nav>
   );
 
-  // Executive Home Page - Desktop Only Design
-  const renderExecutiveHomePage = () => (
+  // Home Page Component
+  const renderHomePage = () => (
     <div>
       {/* Hero Section */}
-      <section className="executive-hero">
-        <div className="executive-hero-container">
-          <div className="executive-hero-content">
-            <div className="executive-hero-badge">
-              <span>🇩🇿</span>
-              <span>Professional Driving Education</span>
+      <section className="hero-section">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col-lg-6">
+              <div className="hero-content">
+                <div className="hero-badge">
+                  <span>🇩🇿</span>
+                  <span>Professional Driving Education</span>
+                </div>
+                
+                <h1 className="hero-title">
+                  {t.heroTitle}
+                </h1>
+                
+                <p className="hero-subtitle">
+                  {t.heroSubtitle}
+                </p>
+                
+                <div className="d-flex gap-3 mb-5">
+                  <button
+                    onClick={() => {
+                      setCurrentPage('find-schools');
+                      fetchDrivingSchools();
+                    }}
+                    className="btn btn-custom-primary"
+                  >
+                    🔍 {t.heroButton1}
+                  </button>
+                  <button
+                    onClick={() => setShowOfflineQuiz(true)}
+                    className="btn btn-custom-black"
+                  >
+                    📚 {t.heroButton2}
+                  </button>
+                </div>
+                
+                <div className="hero-stats">
+                  <div className="hero-stat">
+                    <span className="hero-stat-number">{t.stat1}</span>
+                    <span className="hero-stat-label">{t.stat1Label}</span>
+                  </div>
+                  <div className="hero-stat">
+                    <span className="hero-stat-number">{t.stat2}</span>
+                    <span className="hero-stat-label">{t.stat2Label}</span>
+                  </div>
+                  <div className="hero-stat">
+                    <span className="hero-stat-number">{t.stat3}</span>
+                    <span className="hero-stat-label">{t.stat3Label}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            <h1 className="executive-hero-title">
-              {t.heroTitle}
-            </h1>
-            
-            <p className="executive-hero-subtitle">
-              {t.heroSubtitle}
-            </p>
-            
-            <div className="executive-hero-actions">
-              <button
-                onClick={() => {
-                  setCurrentPage('find-schools');
-                  fetchDrivingSchools();
-                }}
-                className="btn-executive btn-primary"
-              >
-                🔍 {t.heroButton1}
-              </button>
-              <button
-                onClick={() => setShowOfflineQuiz(true)}
-                className="btn-executive btn-algeria"
-              >
-                📚 {t.heroButton2}
-              </button>
-            </div>
-            
-            <div className="executive-hero-stats">
-              <div className="executive-hero-stat">
-                <span className="executive-hero-stat-number">{t.stat1}</span>
-                <span className="executive-hero-stat-label">{t.stat1Label}</span>
+            <div className="col-lg-6">
+              <div className="text-center">
+                <div className="bg-white bg-opacity-10 rounded-4 p-5 backdrop-blur">
+                  <div className="display-1 mb-3">🎓</div>
+                  <h3 className="h4 mb-3">Premium Training</h3>
+                  <p className="mb-0">Experience world-class driving education</p>
+                </div>
               </div>
-              <div className="executive-hero-stat">
-                <span className="executive-hero-stat-number">{t.stat2}</span>
-                <span className="executive-hero-stat-label">{t.stat2Label}</span>
-              </div>
-              <div className="executive-hero-stat">
-                <span className="executive-hero-stat-number">{t.stat3}</span>
-                <span className="executive-hero-stat-label">{t.stat3Label}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="executive-hero-visual">
-            <div className="executive-hero-visual-content">
-              <div className="executive-hero-icon">🎓</div>
-              <h3 style={{fontSize: '1.5rem', marginBottom: '1rem'}}>Premium Training</h3>
-              <p style={{opacity: 0.8}}>Experience world-class driving education</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="executive-features">
-        <div className="executive-features-container">
-          <div className="executive-section-header">
-            <div className="executive-section-badge">Excellence in Education</div>
-            <h2 className="executive-section-title">{t.whyChoose}</h2>
-            <p className="executive-section-subtitle">
+      <section className="py-5 bg-white">
+        <div className="container">
+          <div className="text-center mb-5">
+            <div className="badge bg-primary fs-6 mb-3">Excellence in Education</div>
+            <h2 className="display-5 fw-bold text-dark mb-3">{t.whyChoose}</h2>
+            <p className="lead text-muted mx-auto" style={{maxWidth: '600px'}}>
               Join thousands of successful drivers who chose our platform for their driving education journey.
             </p>
           </div>
           
-          <div className="executive-features-grid">
-            <div className="executive-feature-card">
-              <div className="executive-feature-icon">🏆</div>
-              <h3 className="executive-feature-title">{t.feature1Title}</h3>
-              <p className="executive-feature-description">{t.feature1Desc}</p>
+          <div className="row g-4">
+            <div className="col-md-4">
+              <div className="feature-card">
+                <div className="feature-icon">🏆</div>
+                <h3 className="feature-title">{t.feature1Title}</h3>
+                <p className="feature-description">{t.feature1Desc}</p>
+              </div>
             </div>
             
-            <div className="executive-feature-card">
-              <div className="executive-feature-icon">📋</div>
-              <h3 className="executive-feature-title">{t.feature2Title}</h3>
-              <p className="executive-feature-description">{t.feature2Desc}</p>
+            <div className="col-md-4">
+              <div className="feature-card">
+                <div className="feature-icon">📋</div>
+                <h3 className="feature-title">{t.feature2Title}</h3>
+                <p className="feature-description">{t.feature2Desc}</p>
+              </div>
             </div>
             
-            <div className="executive-feature-card">
-              <div className="executive-feature-icon">🗺️</div>
-              <h3 className="executive-feature-title">{t.feature3Title}</h3>
-              <p className="executive-feature-description">{t.feature3Desc}</p>
+            <div className="col-md-4">
+              <div className="feature-card">
+                <div className="feature-icon">🗺️</div>
+                <h3 className="feature-title">{t.feature3Title}</h3>
+                <p className="feature-description">{t.feature3Desc}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -766,24 +806,24 @@ function App() {
     </div>
   );
 
-  // Executive Schools Page
-  const renderExecutiveSchoolsPage = () => (
-    <div className="executive-schools">
-      <div className="container-executive" style={{paddingTop: '120px'}}>
-        <div className="executive-section-header">
-          <div className="executive-section-badge">Premium Driving Schools</div>
-          <h2 className="executive-section-title">Choose Your Driving School</h2>
-          <p className="executive-section-subtitle">
+  // Schools Page Component
+  const renderSchoolsPage = () => (
+    <div className="pt-5 mt-5">
+      <div className="container">
+        <div className="text-center mb-5">
+          <div className="badge bg-primary fs-6 mb-3">Premium Driving Schools</div>
+          <h2 className="display-5 fw-bold text-dark mb-3">Choose Your Driving School</h2>
+          <p className="lead text-muted mx-auto" style={{maxWidth: '600px'}}>
             Explore certified driving schools across Algeria with guaranteed quality and professional instruction.
           </p>
         </div>
 
-        {/* Enhanced Search and Filter Section */}
-        <div style={{maxWidth: '1200px', margin: '3rem auto', background: 'white', padding: '2rem', borderRadius: '1rem', boxShadow: 'var(--shadow-lg)'}}>
+        {/* Search and Filter Section */}
+        <div className="search-container mb-5">
           
           {/* Search Bar */}
-          <form onSubmit={handleSearch} style={{marginBottom: '2rem'}}>
-            <div style={{position: 'relative', maxWidth: '600px', margin: '0 auto'}}>
+          <form onSubmit={handleSearch} className="mb-4">
+            <div className="position-relative mx-auto" style={{maxWidth: '600px'}}>
               <input
                 type="text"
                 placeholder="Search schools by name, address, or description..."
@@ -791,42 +831,19 @@ function App() {
                 onChange={(e) => handleSearchInputChange(e.target.value)}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                className="executive-form-input"
-                style={{paddingRight: '4rem'}}
+                className="form-control form-control-lg pe-5"
               />
               <button
                 type="submit"
-                style={{
-                  position: 'absolute',
-                  right: '1rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'var(--primary-blue)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 1rem',
-                  cursor: 'pointer'
-                }}
+                className="btn btn-primary position-absolute top-50 end-0 translate-middle-y me-2"
+                style={{zIndex: 5}}
               >
                 🔍
               </button>
               
               {/* Search Suggestions */}
               {showSuggestions && searchSuggestions.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  background: 'white',
-                  border: '1px solid var(--neutral-200)',
-                  borderRadius: '0.5rem',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 10,
-                  maxHeight: '200px',
-                  overflowY: 'auto'
-                }}>
+                <div className="search-suggestions">
                   {searchSuggestions.map((suggestion, index) => (
                     <div
                       key={index}
@@ -835,13 +852,7 @@ function App() {
                         setShowSuggestions(false);
                         fetchDrivingSchools({ search: suggestion, page: 1 });
                       }}
-                      style={{
-                        padding: '0.75rem 1rem',
-                        cursor: 'pointer',
-                        borderBottom: index < searchSuggestions.length - 1 ? '1px solid var(--neutral-100)' : 'none'
-                      }}
-                      onMouseEnter={(e) => e.target.style.background = 'var(--neutral-50)'}
-                      onMouseLeave={(e) => e.target.style.background = 'white'}
+                      className="search-suggestion-item"
                     >
                       {suggestion}
                     </div>
@@ -852,18 +863,18 @@ function App() {
           </form>
 
           {/* Advanced Filters */}
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem'}}>
+          <div className="row g-3 mb-3">
             
             {/* State Filter */}
-            <div>
-              <label style={{display: 'block', marginBottom: '0.5rem', fontWeight: '500'}}>Wilaya</label>
+            <div className="col-md-6 col-lg-3">
+              <label className="form-label fw-medium">Wilaya</label>
               <select
                 value={selectedState}
                 onChange={(e) => {
                   setSelectedState(e.target.value);
                   fetchDrivingSchools({ state: e.target.value, page: 1 });
                 }}
-                className="executive-form-input executive-form-select"
+                className="form-select"
               >
                 <option value="">All Wilayas</option>
                 {states.map((state) => (
@@ -875,8 +886,8 @@ function App() {
             </div>
 
             {/* Price Range */}
-            <div>
-              <label style={{display: 'block', marginBottom: '0.5rem', fontWeight: '500'}}>Min Price (DZD)</label>
+            <div className="col-md-6 col-lg-3">
+              <label className="form-label fw-medium">Min Price (DZD)</label>
               <input
                 type="number"
                 placeholder="Min price"
@@ -885,12 +896,12 @@ function App() {
                   setPriceRange(prev => ({ ...prev, min: e.target.value }));
                 }}
                 onBlur={() => fetchDrivingSchools({ page: 1 })}
-                className="executive-form-input"
+                className="form-control"
               />
             </div>
 
-            <div>
-              <label style={{display: 'block', marginBottom: '0.5rem', fontWeight: '500'}}>Max Price (DZD)</label>
+            <div className="col-md-6 col-lg-3">
+              <label className="form-label fw-medium">Max Price (DZD)</label>
               <input
                 type="number"
                 placeholder="Max price"
@@ -899,20 +910,20 @@ function App() {
                   setPriceRange(prev => ({ ...prev, max: e.target.value }));
                 }}
                 onBlur={() => fetchDrivingSchools({ page: 1 })}
-                className="executive-form-input"
+                className="form-control"
               />
             </div>
 
             {/* Rating Filter */}
-            <div>
-              <label style={{display: 'block', marginBottom: '0.5rem', fontWeight: '500'}}>Min Rating</label>
+            <div className="col-md-6 col-lg-3">
+              <label className="form-label fw-medium">Min Rating</label>
               <select
                 value={minRating}
                 onChange={(e) => {
                   setMinRating(e.target.value);
                   fetchDrivingSchools({ min_rating: e.target.value, page: 1 });
                 }}
-                className="executive-form-input executive-form-select"
+                className="form-select"
               >
                 <option value="">Any Rating</option>
                 <option value="4">4+ Stars</option>
@@ -921,17 +932,19 @@ function App() {
                 <option value="1">1+ Stars</option>
               </select>
             </div>
+          </div>
 
-            {/* Sort Options */}
-            <div>
-              <label style={{display: 'block', marginBottom: '0.5rem', fontWeight: '500'}}>Sort By</label>
+          {/* Sort Options */}
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label className="form-label fw-medium">Sort By</label>
               <select
                 value={sortBy}
                 onChange={(e) => {
                   setSortBy(e.target.value);
                   fetchDrivingSchools({ sort_by: e.target.value, page: 1 });
                 }}
-                className="executive-form-input executive-form-select"
+                className="form-select"
               >
                 <option value="name">Name</option>
                 <option value="price">Price</option>
@@ -940,15 +953,15 @@ function App() {
               </select>
             </div>
 
-            <div>
-              <label style={{display: 'block', marginBottom: '0.5rem', fontWeight: '500'}}>Order</label>
+            <div className="col-md-6">
+              <label className="form-label fw-medium">Order</label>
               <select
                 value={sortOrder}
                 onChange={(e) => {
                   setSortOrder(e.target.value);
                   fetchDrivingSchools({ sort_order: e.target.value, page: 1 });
                 }}
-                className="executive-form-input executive-form-select"
+                className="form-select"
               >
                 <option value="asc">Ascending</option>
                 <option value="desc">Descending</option>
@@ -957,16 +970,16 @@ function App() {
           </div>
 
           {/* Filter Actions */}
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <div className="d-flex justify-content-between align-items-center mt-4">
             <button
               onClick={clearFilters}
-              className="btn-executive btn-secondary"
+              className="btn btn-outline-secondary"
             >
               Clear All Filters
             </button>
             
             {pagination.total_count > 0 && (
-              <div style={{color: 'var(--neutral-600)'}}>
+              <div className="text-muted">
                 Showing {pagination.total_count} school(s)
               </div>
             )}
@@ -974,50 +987,51 @@ function App() {
         </div>
 
         {loading ? (
-          <div className="executive-loading">
-            <div className="executive-spinner"></div>
+          <div className="loading-container">
+            <div className="spinner-custom"></div>
           </div>
         ) : (
           <>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem'}}>
+            <div className="row g-4">
               {drivingSchools.map((school) => (
-                <div key={school.id} className="school-card-executive">
-                  <div className="school-header">
-                    <div>
-                      <h3 className="school-title">{school.name}</h3>
-                      <div className="school-location">
-                        📍 {school.address}, {school.state}
+                <div key={school.id} className="col-lg-6">
+                  <div className="school-card">
+                    <div className="school-header">
+                      <div>
+                        <h3 className="school-title">{school.name}</h3>
+                        <div className="school-location">
+                          📍 {school.address}, {school.state}
+                        </div>
                       </div>
+                      <div className="school-price">{school.price} DZD</div>
                     </div>
-                    <div className="school-price">{school.price} DZD</div>
-                  </div>
-                
-                  <div className="school-rating">
-                    <div className="school-stars">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="star">
-                          {i < Math.floor(school.rating) ? '★' : '☆'}
-                        </span>
-                      ))}
+                  
+                    <div className="school-rating">
+                      <div className="stars">
+                        {[...Array(5)].map((_, i) => (
+                          <span key={i} className="star">
+                            {i < Math.floor(school.rating) ? '★' : '☆'}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="school-reviews">({school.total_reviews} reviews)</span>
                     </div>
-                    <span className="school-reviews">({school.total_reviews} reviews)</span>
-                  </div>
-                
-                  <p className="school-description">
-                    {school.description}
-                  </p>
-                
-                  <div className="school-actions">
-                    <button
-                      onClick={() => handleEnroll(school.id)}
-                      className="btn-executive btn-primary"
-                      style={{flex: 1}}
-                    >
-                      {t.enrollNow}
-                    </button>
-                    <button className="btn-executive btn-secondary">
-                      {t.viewDetails}
-                    </button>
+                  
+                    <p className="school-description">
+                      {school.description}
+                    </p>
+                  
+                    <div className="d-flex gap-2">
+                      <button
+                        onClick={() => handleEnroll(school.id)}
+                        className="btn btn-custom-primary flex-grow-1"
+                      >
+                        {t.enrollNow}
+                      </button>
+                      <button className="btn btn-outline-secondary">
+                        {t.viewDetails}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1025,53 +1039,54 @@ function App() {
 
             {/* Pagination */}
             {pagination.total_pages > 1 && (
-              <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '3rem'}}>
-                <button
-                  onClick={() => fetchDrivingSchools({ page: pagination.current_page - 1 })}
-                  disabled={!pagination.has_prev}
-                  className="btn-executive btn-secondary"
-                  style={{opacity: pagination.has_prev ? 1 : 0.5}}
-                >
-                  ← Previous
-                </button>
-                
-                <div style={{display: 'flex', gap: '0.5rem'}}>
+              <nav className="mt-5">
+                <ul className="pagination justify-content-center">
+                  <li className={`page-item ${!pagination.has_prev ? 'disabled' : ''}`}>
+                    <button
+                      onClick={() => fetchDrivingSchools({ page: pagination.current_page - 1 })}
+                      disabled={!pagination.has_prev}
+                      className="page-link"
+                    >
+                      ← Previous
+                    </button>
+                  </li>
+                  
                   {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
                     const page = i + 1;
                     return (
-                      <button
-                        key={page}
-                        onClick={() => fetchDrivingSchools({ page })}
-                        className={`btn-executive ${pagination.current_page === page ? 'btn-primary' : 'btn-secondary'}`}
-                        style={{minWidth: '40px'}}
-                      >
-                        {page}
-                      </button>
+                      <li key={page} className={`page-item ${pagination.current_page === page ? 'active' : ''}`}>
+                        <button
+                          onClick={() => fetchDrivingSchools({ page })}
+                          className="page-link"
+                        >
+                          {page}
+                        </button>
+                      </li>
                     );
                   })}
-                </div>
-                
-                <button
-                  onClick={() => fetchDrivingSchools({ page: pagination.current_page + 1 })}
-                  disabled={!pagination.has_next}
-                  className="btn-executive btn-secondary"
-                  style={{opacity: pagination.has_next ? 1 : 0.5}}
-                >
-                  Next →
-                </button>
-              </div>
+                  
+                  <li className={`page-item ${!pagination.has_next ? 'disabled' : ''}`}>
+                    <button
+                      onClick={() => fetchDrivingSchools({ page: pagination.current_page + 1 })}
+                      disabled={!pagination.has_next}
+                      className="page-link"
+                    >
+                      Next →
+                    </button>
+                  </li>
+                </ul>
+              </nav>
             )}
           </>
         )}
 
         {drivingSchools.length === 0 && !loading && (
-          <div className="text-center" style={{padding: '4rem'}}>
-            <div style={{fontSize: '4rem', marginBottom: '2rem'}}>🏫</div>
+          <div className="text-center py-5">
+            <div style={{fontSize: '4rem'}} className="mb-4">🏫</div>
             <h3>No driving schools found matching your criteria.</h3>
             <button
               onClick={clearFilters}
-              className="btn-executive btn-primary"
-              style={{marginTop: '1rem'}}
+              className="btn btn-primary mt-3"
             >
               Clear filters to see all schools
             </button>
@@ -1081,264 +1096,262 @@ function App() {
     </div>
   );
 
-  // Executive Dashboard
-  const renderExecutiveDashboard = () => (
-    <div className="executive-dashboard">
-      <div className="executive-dashboard-container">
-        <div className="executive-dashboard-header">
-          <h1 className="executive-dashboard-welcome">
+  // Dashboard Component
+  const renderDashboard = () => (
+    <div className="dashboard-container">
+      <div className="container">
+        <div className="dashboard-header">
+          <h1 className="dashboard-welcome">
             Welcome back, {user?.first_name}!
           </h1>
-          <p className="executive-dashboard-subtitle">
-            Your role: <span style={{fontWeight: 600, textTransform: 'capitalize'}}>{user?.role}</span>
+          <p className="dashboard-subtitle">
+            Your role: <span className="fw-bold text-capitalize">{user?.role}</span>
           </p>
         </div>
         
         {dashboardData ? (
-          <div className="executive-dashboard-grid">
-            <div className="executive-dashboard-card">
-              <h3 className="executive-dashboard-card-title">Your Enrollments</h3>
-              {dashboardData.enrollments && dashboardData.enrollments.length > 0 ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                  {dashboardData.enrollments.map((enrollment) => (
-                    <div key={enrollment.id} style={{padding: '1rem', border: '1px solid var(--neutral-200)', borderRadius: 'var(--border-radius-lg)'}}>
-                      <h4 style={{fontWeight: 600, marginBottom: '0.5rem'}}>
-                        {enrollment.school_name}
-                      </h4>
-                      <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                        <span>Status:</span>
-                        <span className={`status-badge status-${enrollment.enrollment_status.replace('_', '-')}`}>
-                          {enrollment.enrollment_status.replace('_', ' ')}
-                        </span>
+          <div className="row g-4">
+            <div className="col-lg-8">
+              <div className="dashboard-card">
+                <h3 className="dashboard-card-title">Your Enrollments</h3>
+                {dashboardData.enrollments && dashboardData.enrollments.length > 0 ? (
+                  <div className="d-flex flex-column gap-3">
+                    {dashboardData.enrollments.map((enrollment) => (
+                      <div key={enrollment.id} className="p-3 border rounded">
+                        <h4 className="fw-bold mb-2">
+                          {enrollment.school_name}
+                        </h4>
+                        <div className="d-flex align-items-center gap-3">
+                          <span>Status:</span>
+                          <span className={`status-badge status-${enrollment.enrollment_status.replace('_', '-')}`}>
+                            {enrollment.enrollment_status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        {enrollment.enrollment_status === 'pending_documents' && (
+                          <p className="text-primary small mt-2">
+                            ℹ️ Please upload required documents for approval
+                          </p>
+                        )}
                       </div>
-                      {enrollment.enrollment_status === 'pending_documents' && (
-                        <p style={{color: 'var(--primary-blue)', fontSize: '0.875rem', marginTop: '0.5rem'}}>
-                          ℹ️ Please upload required documents for approval
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>No enrollments yet. Find a school to get started!</p>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <p>No enrollments yet. Find a school to get started!</p>
+                )}
+              </div>
             </div>
             
-            <div className="executive-dashboard-card">
-              <h3 className="executive-dashboard-card-title">Quick Actions</h3>
-              <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                <button
-                  onClick={() => {
-                    setCurrentPage('find-schools');
-                    fetchDrivingSchools();
-                  }}
-                  className="btn-executive btn-primary"
-                >
-                  🔍 Find Driving Schools
-                </button>
-                <button
-                  onClick={() => setShowOfflineQuiz(true)}
-                  className="btn-executive btn-algeria"
-                >
-                  📚 Practice Tests
-                </button>
+            <div className="col-lg-4">
+              <div className="dashboard-card">
+                <h3 className="dashboard-card-title">Quick Actions</h3>
+                <div className="d-flex flex-column gap-3">
+                  <button
+                    onClick={() => {
+                      setCurrentPage('find-schools');
+                      fetchDrivingSchools();
+                    }}
+                    className="btn btn-custom-primary"
+                  >
+                    🔍 Find Driving Schools
+                  </button>
+                  <button
+                    onClick={() => setShowOfflineQuiz(true)}
+                    className="btn btn-custom-black"
+                  >
+                    📚 Practice Tests
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="executive-loading">
-            <div className="executive-spinner"></div>
+          <div className="loading-container">
+            <div className="spinner-custom"></div>
           </div>
         )}
       </div>
     </div>
   );
 
-  // Auth Modal
+  // Auth Modal Component
   const renderAuthModal = () => (
     showAuthModal && (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: '2rem'
-      }}>
-        <div className="executive-form">
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem'}}>
-            <h2 className="executive-form-title" style={{margin: 0}}>
-              {authMode === 'login' ? t.login : t.register}
-            </h2>
-            <button
-              onClick={() => setShowAuthModal(false)}
-              style={{background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer'}}
-            >
-              ×
-            </button>
-          </div>
-
-          {errorMessage && (
-            <div className="executive-alert executive-alert-error">
-              {errorMessage}
+      <div 
+        className="modal show d-block" 
+        style={{backgroundColor: 'rgba(0, 0, 0, 0.75)'}}
+        tabIndex="-1"
+      >
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">
+                {authMode === 'login' ? t.login : t.register}
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowAuthModal(false)}
+              ></button>
             </div>
-          )}
-
-          {successMessage && (
-            <div className="executive-alert executive-alert-success">
-              {successMessage}
-            </div>
-          )}
-
-          <form onSubmit={handleAuth}>
-            <div className="executive-form-group">
-              <label className="executive-form-label">{t.email}</label>
-              <input
-                type="email"
-                required
-                value={authData.email}
-                onChange={(e) => setAuthData(prev => ({ ...prev, email: e.target.value }))}
-                className="executive-form-input"
-              />
-            </div>
-
-            <div className="executive-form-group">
-              <label className="executive-form-label">Password</label>
-              <input
-                type="password"
-                required
-                value={authData.password}
-                onChange={(e) => setAuthData(prev => ({ ...prev, password: e.target.value }))}
-                className="executive-form-input"
-              />
-            </div>
-
-            {authMode === 'register' && (
-              <>
-                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
-                  <div className="executive-form-group">
-                    <label className="executive-form-label">First Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={authData.first_name}
-                      onChange={(e) => setAuthData(prev => ({ ...prev, first_name: e.target.value }))}
-                      className="executive-form-input"
-                    />
-                  </div>
-                  <div className="executive-form-group">
-                    <label className="executive-form-label">Last Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={authData.last_name}
-                      onChange={(e) => setAuthData(prev => ({ ...prev, last_name: e.target.value }))}
-                      className="executive-form-input"
-                    />
-                  </div>
+            
+            <div className="modal-body">
+              {errorMessage && (
+                <div className="alert-custom-error">
+                  {errorMessage}
                 </div>
-
-                <div className="executive-form-group">
-                  <label className="executive-form-label">{t.phone}</label>
-                  <input
-                    type="tel"
-                    required
-                    value={authData.phone}
-                    onChange={(e) => setAuthData(prev => ({ ...prev, phone: e.target.value }))}
-                    className="executive-form-input"
-                  />
-                </div>
-
-                <div className="executive-form-group">
-                  <label className="executive-form-label">{t.address}</label>
-                  <input
-                    type="text"
-                    required
-                    value={authData.address}
-                    onChange={(e) => setAuthData(prev => ({ ...prev, address: e.target.value }))}
-                    className="executive-form-input"
-                  />
-                </div>
-
-                <div className="executive-form-group">
-                  <label className="executive-form-label">Date of Birth</label>
-                  <input
-                    type="date"
-                    required
-                    value={authData.date_of_birth}
-                    onChange={(e) => setAuthData(prev => ({ ...prev, date_of_birth: e.target.value }))}
-                    className="executive-form-input"
-                  />
-                </div>
-
-                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
-                  <div className="executive-form-group">
-                    <label className="executive-form-label">Gender</label>
-                    <select
-                      value={authData.gender}
-                      onChange={(e) => setAuthData(prev => ({ ...prev, gender: e.target.value }))}
-                      className="executive-form-input executive-form-select"
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
-                  </div>
-                  <div className="executive-form-group">
-                    <label className="executive-form-label">{t.state}</label>
-                    <select
-                      required
-                      value={authData.state}
-                      onChange={(e) => setAuthData(prev => ({ ...prev, state: e.target.value }))}
-                      className="executive-form-input executive-form-select"
-                    >
-                      <option value="">Select Wilaya</option>
-                      {states.map((state) => (
-                        <option key={state} value={state}>
-                          {state}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="btn-executive btn-primary"
-              style={{width: '100%', marginTop: '1rem'}}
-            >
-              {authLoading ? (
-                <>
-                  <div className="executive-spinner" style={{width: '20px', height: '20px', marginRight: '0.5rem'}}></div>
-                  {authMode === 'login' ? 'Signing in...' : 'Creating account...'}
-                </>
-              ) : (
-                authMode === 'login' ? t.login : t.register
               )}
-            </button>
-          </form>
 
-          <div style={{textAlign: 'center', marginTop: '2rem'}}>
-            <button
-              onClick={() => {
-                setAuthMode(authMode === 'login' ? 'register' : 'login');
-                setErrorMessage('');
-                setSuccessMessage('');
-              }}
-              style={{background: 'none', border: 'none', color: 'var(--primary-blue)', cursor: 'pointer', textDecoration: 'underline'}}
-            >
-              {authMode === 'login' 
-                ? "Don't have an account? Register" 
-                : "Already have an account? Login"
-              }
-            </button>
+              {successMessage && (
+                <div className="alert-custom-success">
+                  {successMessage}
+                </div>
+              )}
+
+              <form onSubmit={handleAuth}>
+                <div className="mb-3">
+                  <label className="form-label">{t.email}</label>
+                  <input
+                    type="email"
+                    required
+                    value={authData.email}
+                    onChange={(e) => setAuthData(prev => ({ ...prev, email: e.target.value }))}
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={authData.password}
+                    onChange={(e) => setAuthData(prev => ({ ...prev, password: e.target.value }))}
+                    className="form-control"
+                  />
+                </div>
+
+                {authMode === 'register' && (
+                  <>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">First Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={authData.first_name}
+                          onChange={(e) => setAuthData(prev => ({ ...prev, first_name: e.target.value }))}
+                          className="form-control"
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Last Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={authData.last_name}
+                          onChange={(e) => setAuthData(prev => ({ ...prev, last_name: e.target.value }))}
+                          className="form-control"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">{t.phone}</label>
+                      <input
+                        type="tel"
+                        required
+                        value={authData.phone}
+                        onChange={(e) => setAuthData(prev => ({ ...prev, phone: e.target.value }))}
+                        className="form-control"
+                      />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">{t.address}</label>
+                      <input
+                        type="text"
+                        required
+                        value={authData.address}
+                        onChange={(e) => setAuthData(prev => ({ ...prev, address: e.target.value }))}
+                        className="form-control"
+                      />
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">Date of Birth</label>
+                      <input
+                        type="date"
+                        required
+                        value={authData.date_of_birth}
+                        onChange={(e) => setAuthData(prev => ({ ...prev, date_of_birth: e.target.value }))}
+                        className="form-control"
+                      />
+                    </div>
+
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Gender</label>
+                        <select
+                          value={authData.gender}
+                          onChange={(e) => setAuthData(prev => ({ ...prev, gender: e.target.value }))}
+                          className="form-select"
+                        >
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">{t.state}</label>
+                        <select
+                          required
+                          value={authData.state}
+                          onChange={(e) => setAuthData(prev => ({ ...prev, state: e.target.value }))}
+                          className="form-select"
+                        >
+                          <option value="">Select Wilaya</option>
+                          {states.map((state) => (
+                            <option key={state} value={state}>
+                              {state}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="btn btn-primary w-100 mt-4"
+                >
+                  {authLoading ? (
+                    <>
+                      <div className="spinner-border spinner-border-sm me-2"></div>
+                      {authMode === 'login' ? 'Signing in...' : 'Creating account...'}
+                    </>
+                  ) : (
+                    authMode === 'login' ? t.login : t.register
+                  )}
+                </button>
+              </form>
+
+              <div className="text-center mt-3">
+                <button
+                  onClick={() => {
+                    setAuthMode(authMode === 'login' ? 'register' : 'login');
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                  }}
+                  className="btn btn-link text-decoration-none"
+                >
+                  {authMode === 'login' 
+                    ? "Don't have an account? Register" 
+                    : "Already have an account? Login"
+                  }
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1347,44 +1360,40 @@ function App() {
 
   // Main render
   return (
-    <div style={{minHeight: '100vh', backgroundColor: 'var(--neutral-100)'}}>
+    <div className="min-vh-100">
       {/* Global Messages */}
       {globalError && (
-        <div style={{position: 'fixed', top: '1rem', right: '1rem', zIndex: 9998}}>
-          <div className="executive-alert executive-alert-error" style={{maxWidth: '400px'}}>
+        <div className="position-fixed top-0 end-0 m-3" style={{zIndex: 9999}}>
+          <div className="alert-custom-error" style={{maxWidth: '400px'}}>
             {globalError}
             <button
               onClick={() => setGlobalError('')}
-              style={{marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer'}}
-            >
-              ×
-            </button>
+              className="btn-close ms-auto"
+            ></button>
           </div>
         </div>
       )}
 
       {successMessage && (
-        <div style={{position: 'fixed', top: '1rem', right: '1rem', zIndex: 9998}}>
-          <div className="executive-alert executive-alert-success" style={{maxWidth: '400px'}}>
+        <div className="position-fixed top-0 end-0 m-3" style={{zIndex: 9999}}>
+          <div className="alert-custom-success" style={{maxWidth: '400px'}}>
             {successMessage}
             <button
               onClick={() => setSuccessMessage('')}
-              style={{marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer'}}
-            >
-              ×
-            </button>
+              className="btn-close ms-auto"
+            ></button>
           </div>
         </div>
       )}
 
       {/* Navigation */}
-      {renderExecutiveNavigation()}
+      {renderNavigation()}
 
       {/* Main Content */}
       <main>
-        {currentPage === 'home' && renderExecutiveHomePage()}
-        {currentPage === 'find-schools' && renderExecutiveSchoolsPage()}
-        {currentPage === 'dashboard' && renderExecutiveDashboard()}
+        {currentPage === 'home' && renderHomePage()}
+        {currentPage === 'find-schools' && renderSchoolsPage()}
+        {currentPage === 'dashboard' && renderDashboard()}
       </main>
 
       {/* Modals */}
