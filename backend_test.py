@@ -524,20 +524,102 @@ class DrivingSchoolAPITester:
             200
         )
         
-    def test_get_my_notifications(self):
-        """Test getting user's notifications"""
+    def test_get_my_teachers(self):
+        """Test getting teachers for a manager's school"""
+        if self.user_role != 'manager':
+            print("Skipping get teachers - requires manager role")
+            return False, {}
+            
         success, response = self.run_test(
-            "Get My Notifications",
+            "Get My Teachers",
             "GET",
-            "api/notifications/my",
+            "api/teachers/my",
             200
         )
         
         if success and len(response) > 0:
-            self.notification_id = response[0]['id']
-            print(f"Found notification ID: {self.notification_id}")
+            self.teacher_id = response[0]['id']
+            print(f"Found teacher ID: {self.teacher_id}")
         
         return success, response
+        
+    def test_upload_document(self):
+        """Test document upload"""
+        if self.user_role not in ['student', 'teacher']:
+            print("Skipping document upload - requires student or teacher role")
+            return False, {}
+        
+        # Create a simple text file for testing
+        test_file_content = b"This is a test document for the driving school platform."
+        files = {
+            'file': ('test_document.txt', test_file_content, 'text/plain')
+        }
+        
+        form_data = {
+            'document_type': 'profile_photo'
+        }
+        
+        success, response = self.run_test(
+            "Upload Document",
+            "POST",
+            "api/documents/upload",
+            200,
+            files=files,
+            form_data=form_data
+        )
+        
+        if success and 'document_id' in response:
+            self.document_id = response['document_id']
+            print(f"Document uploaded with ID: {self.document_id}")
+            return True
+        return False
+        
+    def test_get_documents(self):
+        """Test getting user documents"""
+        if not self.user_id:
+            print("Skipping get documents - no user ID")
+            return False, {}
+            
+        return self.run_test(
+            "Get User Documents",
+            "GET",
+            "api/documents",
+            200
+        )
+        
+    def test_take_quiz(self):
+        """Test taking a quiz"""
+        if self.user_role != 'student':
+            print("Skipping quiz taking - requires student role")
+            return False, {}
+            
+        # First get available quizzes
+        success, quizzes = self.run_test(
+            "Get Available Quizzes",
+            "GET",
+            "api/quizzes",
+            200
+        )
+        
+        if not success or not quizzes or len(quizzes) == 0:
+            print("No quizzes available to take")
+            return False, {}
+            
+        quiz_id = quizzes[0]['id']
+        
+        # Create sample answers
+        answers = {}
+        for i, question in enumerate(quizzes[0]['questions']):
+            # Just pick the first answer for testing
+            answers[str(i)] = 0
+        
+        return self.run_test(
+            "Take Quiz",
+            "POST",
+            f"api/quizzes/{quiz_id}/attempt",
+            200,
+            data=answers
+        )
         
     def test_mark_notification_read(self):
         """Test marking a notification as read"""
