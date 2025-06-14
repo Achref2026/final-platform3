@@ -193,28 +193,24 @@ const MobileNotifications = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden">
-      <div className="fixed right-0 top-0 h-full w-full max-w-sm bg-white shadow-xl transform transition-transform duration-300">
+    <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-md-none" style={{zIndex: 9999}}>
+      <div className="position-fixed end-0 top-0 h-100 bg-white shadow-lg" style={{width: '100%', maxWidth: '400px'}}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Notifications</h3>
+        <div className="bg-primary text-white p-3">
+          <div className="d-flex align-items-center justify-content-between">
+            <h5 className="mb-0 fw-semibold">Notifications</h5>
             <button
               onClick={onToggleNotifications}
-              className="text-white hover:text-gray-200 p-1"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              className="btn-close btn-close-white"
+            ></button>
           </div>
           
           {unreadCount > 0 && (
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-sm opacity-90">{unreadCount} unread</span>
+            <div className="d-flex align-items-center justify-content-between mt-2">
+              <span className="small opacity-75">{unreadCount} unread</span>
               <button
                 onClick={onMarkAllAsRead}
-                className="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full hover:bg-opacity-30 transition-colors"
+                className="btn btn-sm btn-light bg-opacity-25 text-white border-0"
               >
                 Mark all read
               </button>
@@ -224,21 +220,21 @@ const MobileNotifications = ({
 
         {/* Push Notification Settings */}
         {pushSupported && (
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
+          <div className="p-3 border-bottom bg-light">
+            <div className="d-flex align-items-center justify-content-between">
               <div>
-                <p className="text-sm font-medium text-gray-700">Push Notifications</p>
-                <p className="text-xs text-gray-500">
+                <p className="small fw-medium text-dark mb-0">Push Notifications</p>
+                <p className="text-muted" style={{fontSize: '0.75rem'}}>
                   {subscribedToPush ? 'Enabled' : 'Disabled'}
                 </p>
               </div>
               {pushPermission === 'granted' ? (
                 <button
                   onClick={subscribedToPush ? unsubscribeFromPushNotifications : subscribeToPushNotifications}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  className={`btn btn-sm ${
                     subscribedToPush 
-                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      ? 'btn-outline-danger' 
+                      : 'btn-outline-success'
                   }`}
                 >
                   {subscribedToPush ? 'Disable' : 'Enable'}
@@ -246,7 +242,7 @@ const MobileNotifications = ({
               ) : (
                 <button
                   onClick={requestNotificationPermission}
-                  className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200 transition-colors"
+                  className="btn btn-sm btn-outline-primary"
                 >
                   Enable
                 </button>
@@ -256,63 +252,64 @@ const MobileNotifications = ({
         )}
 
         {/* Notifications List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="overflow-auto" style={{height: 'calc(100vh - 200px)'}}>
           {notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-              <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} 
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <p className="text-center">No notifications yet</p>
-              <p className="text-sm text-center opacity-70">You'll see updates here</p>
+            <div className="d-flex flex-column align-items-center justify-content-center text-muted" style={{height: '300px'}}>
+              <i className="bi bi-bell fs-1 opacity-50 mb-3"></i>
+              <p className="text-center mb-1">No notifications yet</p>
+              <p className="small text-center opacity-75">You'll see updates here</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div>
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 hover:bg-gray-50 transition-colors ${
-                    !notification.is_read ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  className={`p-3 border-bottom ${
+                    !notification.is_read ? 'bg-primary bg-opacity-10 border-start border-primary border-3' : ''
                   }`}
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 text-2xl">
+                  <div className="d-flex align-items-start">
+                    <div className="me-3 fs-4">
                       {getPriorityIcon(notification.type)}
                     </div>
                     
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                    <div className="flex-grow-1">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <p className="small fw-medium text-dark mb-1">
                           {notification.title}
                         </p>
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(notification.priority)}`}>
+                        <div className="d-flex align-items-center gap-2">
+                          <span className={`badge ${getPriorityColor(notification.priority)}`}>
                             {notification.priority}
                           </span>
                           <button
                             onClick={() => onDeleteNotification(notification.id)}
-                            className="text-gray-400 hover:text-red-500 transition-colors"
+                            className="btn btn-sm btn-link text-muted p-0"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <i className="bi bi-trash3"></i>
                           </button>
                         </div>
                       </div>
                       
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      <p className="small text-muted mb-2" style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
                         {notification.message}
                       </p>
                       
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-500">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="text-muted" style={{fontSize: '0.75rem'}}>
                           {formatNotificationTime(notification.created_at)}
                         </span>
                         
                         {!notification.is_read && (
                           <button
                             onClick={() => onMarkAsRead(notification.id)}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            className="btn btn-link btn-sm text-primary p-0 text-decoration-none"
+                            style={{fontSize: '0.75rem'}}
                           >
                             Mark as read
                           </button>
