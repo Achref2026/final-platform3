@@ -266,119 +266,116 @@ const OfflineQuiz = ({ onClose }) => {
 
   if (!quizStarted && !quizCompleted) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-lg">
-            <div className="flex items-center justify-between">
+      <div className="modal show d-block" style={{backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 9999}}>
+        <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div className="modal-content">
+            {/* Header */}
+            <div className="modal-header bg-primary text-white">
               <div>
-                <h2 className="text-2xl font-bold">Offline Quizzes</h2>
-                <p className="text-blue-100 mt-1">Practice anytime, anywhere</p>
+                <h2 className="modal-title fs-4 fw-bold">Offline Quizzes</h2>
+                <p className="mb-0 opacity-75">Practice anytime, anywhere</p>
               </div>
               <button
+                type="button"
+                className="btn-close btn-close-white"
                 onClick={onClose}
-                className="text-white hover:text-gray-200 p-2"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              ></button>
             </div>
 
             {/* Connection Status */}
-            <div className="flex items-center mt-4 p-3 bg-white bg-opacity-20 rounded-lg">
-              <div className={`w-3 h-3 rounded-full mr-3 ${isOnline ? 'bg-green-400' : 'bg-red-400'}`}></div>
-              <span className="text-sm">
-                {isOnline ? 'Online' : 'Offline'} 
-                {unsyncedResults > 0 && (
-                  <span className="ml-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded text-xs">
-                    {unsyncedResults} results pending sync
+            <div className="bg-primary bg-opacity-75 text-white">
+              <div className="container-fluid">
+                <div className="d-flex align-items-center p-3">
+                  <div className={`rounded-circle me-3 ${isOnline ? 'bg-success' : 'bg-danger'}`} 
+                       style={{width: '12px', height: '12px'}}></div>
+                  <span className="small">
+                    {isOnline ? 'Online' : 'Offline'} 
+                    {unsyncedResults > 0 && (
+                      <span className="ms-2 badge bg-warning text-dark">
+                        {unsyncedResults} results pending sync
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              {syncStatus === 'syncing' && (
-                <div className="ml-auto flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  <span className="text-sm">Syncing...</span>
+                  {syncStatus === 'syncing' && (
+                    <div className="ms-auto d-flex align-items-center">
+                      <div className="spinner-border spinner-border-sm text-light me-2"></div>
+                      <span className="small">Syncing...</span>
+                    </div>
+                  )}
+                  {syncStatus === 'synced' && (
+                    <div className="ms-auto d-flex align-items-center text-success">
+                      <i className="bi bi-check-circle me-1"></i>
+                      <span className="small">Synced</span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {syncStatus === 'synced' && (
-                <div className="ml-auto flex items-center text-green-200">
-                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm">Synced</span>
+              </div>
+            </div>
+
+            {/* Quiz List */}
+            <div className="modal-body">
+              {quizzes.length === 0 ? (
+                <div className="text-center py-5">
+                  <div style={{fontSize: '4rem'}} className="mb-4">📚</div>
+                  <p className="text-muted mb-4">No quizzes available offline</p>
+                  <button
+                    onClick={loadQuizzes}
+                    className="btn btn-primary"
+                  >
+                    Retry Loading
+                  </button>
+                </div>
+              ) : (
+                <div className="row g-3">
+                  {quizzes.map((quiz) => (
+                    <div key={quiz.id} className="col-12">
+                      <div className="card h-100 border-0 shadow-sm">
+                        <div className="card-body">
+                          <div className="d-flex justify-content-between align-items-start">
+                            <div className="flex-grow-1">
+                              <h5 className="card-title d-flex align-items-center">
+                                {quiz.title}
+                                {quiz.offline && (
+                                  <span className="ms-2 badge bg-secondary">
+                                    📱 Offline
+                                  </span>
+                                )}
+                              </h5>
+                              <p className="card-text text-muted">{quiz.description}</p>
+                              
+                              <div className="d-flex flex-wrap gap-3 text-muted small">
+                                <span>
+                                  <i className="bi bi-question-circle me-1"></i>
+                                  {quiz.questions?.length || 0} questions
+                                </span>
+                                <span>
+                                  <i className="bi bi-clock me-1"></i>
+                                  {quiz.time_limit_minutes || 30} minutes
+                                </span>
+                                <span className={`badge ${
+                                  quiz.difficulty === 'easy' ? 'bg-success' :
+                                  quiz.difficulty === 'medium' ? 'bg-warning' :
+                                  'bg-danger'
+                                }`}>
+                                  {quiz.difficulty || 'medium'}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <button
+                              onClick={() => startQuiz(quiz)}
+                              className="btn btn-primary ms-3"
+                            >
+                              Start Quiz
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Quiz List */}
-          <div className="p-6">
-            {quizzes.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-6xl mb-4">📚</div>
-                <p className="text-gray-500 mb-4">No quizzes available offline</p>
-                <button
-                  onClick={loadQuizzes}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Retry Loading
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {quizzes.map((quiz) => (
-                  <div
-                    key={quiz.id}
-                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {quiz.title}
-                          {quiz.offline && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                              📱 Offline
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-gray-600 mt-1">{quiz.description}</p>
-                        
-                        <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {quiz.questions?.length || 0} questions
-                          </span>
-                          <span className="flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {quiz.time_limit_minutes || 30} minutes
-                          </span>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            quiz.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
-                            quiz.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {quiz.difficulty || 'medium'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <button
-                        onClick={() => startQuiz(quiz)}
-                        className="ml-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                      >
-                        Start Quiz
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -389,21 +386,21 @@ const OfflineQuiz = ({ onClose }) => {
     const passed = score >= selectedQuiz.passing_score;
     
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-          <div className={`p-6 rounded-t-lg text-white ${passed ? 'bg-green-600' : 'bg-red-600'}`}>
-            <div className="text-center">
-              <div className="text-6xl mb-4">{passed ? '🎉' : '😔'}</div>
-              <h2 className="text-2xl font-bold">
-                {passed ? 'Congratulations!' : 'Try Again!'}
-              </h2>
-              <p className="text-lg mt-2">Score: {score}%</p>
+      <div className="modal show d-block" style={{backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 9999}}>
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className={`modal-header text-white ${passed ? 'bg-success' : 'bg-danger'}`}>
+              <div className="text-center w-100">
+                <div style={{fontSize: '4rem'}} className="mb-3">{passed ? '🎉' : '😔'}</div>
+                <h2 className="modal-title fs-4 fw-bold">
+                  {passed ? 'Congratulations!' : 'Try Again!'}
+                </h2>
+                <p className="fs-5 mb-0">Score: {score}%</p>
+              </div>
             </div>
-          </div>
 
-          <div className="p-6">
-            <div className="text-center space-y-4">
-              <p className="text-gray-600">
+            <div className="modal-body text-center">
+              <p className="text-muted mb-4">
                 {passed 
                   ? `You passed the quiz! You need ${selectedQuiz.passing_score}% to pass.`
                   : `You need ${selectedQuiz.passing_score}% to pass. Keep practicing!`
@@ -411,17 +408,16 @@ const OfflineQuiz = ({ onClose }) => {
               </p>
 
               {!isOnline && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-yellow-800 text-sm">
-                    📱 Your result is saved offline and will sync when you're back online.
-                  </p>
+                <div className="alert alert-warning d-flex align-items-center">
+                  <i className="bi bi-phone me-2"></i>
+                  <small>Your result is saved offline and will sync when you're back online.</small>
                 </div>
               )}
 
-              <div className="flex space-x-3">
+              <div className="d-grid gap-2 d-md-flex justify-content-md-center">
                 <button
                   onClick={() => startQuiz(selectedQuiz)}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="btn btn-primary"
                 >
                   Try Again
                 </button>
@@ -430,7 +426,7 @@ const OfflineQuiz = ({ onClose }) => {
                     setSelectedQuiz(null);
                     setQuizCompleted(false);
                   }}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                  className="btn btn-secondary"
                 >
                   Back to Quizzes
                 </button>
@@ -444,107 +440,102 @@ const OfflineQuiz = ({ onClose }) => {
 
   // Quiz in progress
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header with progress */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">{selectedQuiz.title}</h2>
-            <div className="text-right">
-              <div className="text-lg font-bold">{formatTime(timeLeft)}</div>
-              <div className="text-sm text-blue-100">Time Left</div>
-            </div>
-          </div>
+    <div className="modal show d-block" style={{backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 9999}}>
+      <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div className="modal-content">
+          {/* Header with progress */}
+          <div className="modal-header bg-primary text-white">
+            <div className="w-100">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h5 className="modal-title fw-bold">{selectedQuiz.title}</h5>
+                <div className="text-end">
+                  <div className="fs-5 fw-bold">{formatTime(timeLeft)}</div>
+                  <div className="small opacity-75">Time Left</div>
+                </div>
+              </div>
 
-          {/* Progress Bar */}
-          <div className="w-full bg-blue-800 rounded-full h-2 mb-2">
-            <div 
-              className="bg-white h-2 rounded-full transition-all duration-300"
-              style={{ width: `${getProgressPercentage()}%` }}
-            ></div>
-          </div>
-          <div className="text-sm text-blue-100">
-            Question {currentQuestionIndex + 1} of {selectedQuiz.questions.length}
-          </div>
-        </div>
-
-        {/* Question */}
-        <div className="p-6">
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {currentQuestion.question}
-            </h3>
-
-            <div className="space-y-3">
-              {currentQuestion.options.map((option, index) => (
-                <label
-                  key={index}
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                    answers[currentQuestion.id] === option
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={`question-${currentQuestion.id}`}
-                    value={option}
-                    checked={answers[currentQuestion.id] === option}
-                    onChange={() => handleAnswerSelect(currentQuestion.id, option)}
-                    className="mr-3 text-blue-600"
-                  />
-                  <span className="text-gray-900">{option}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={previousQuestion}
-              disabled={currentQuestionIndex === 0}
-              className="flex items-center px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Previous
-            </button>
-
-            {isLastQuestion ? (
-              <button
-                onClick={handleQuizSubmit}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
-              >
-                Submit Quiz
-              </button>
-            ) : (
-              <button
-                onClick={nextQuestion}
-                className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Next
-                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Offline indicator */}
-          {!isOnline && (
-            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <span className="text-yellow-800 text-sm">
-                  Taking quiz offline - results will sync when you reconnect
-                </span>
+              {/* Progress Bar */}
+              <div className="progress mb-2" style={{height: '8px'}}>
+                <div 
+                  className="progress-bar bg-light"
+                  style={{ width: `${getProgressPercentage()}%` }}
+                ></div>
+              </div>
+              <div className="small opacity-75">
+                Question {currentQuestionIndex + 1} of {selectedQuiz.questions.length}
               </div>
             </div>
-          )}
+          </div>
+
+          {/* Question */}
+          <div className="modal-body">
+            <div className="mb-4">
+              <h6 className="fw-semibold mb-4">
+                {currentQuestion.question}
+              </h6>
+
+              <div className="d-grid gap-3">
+                {currentQuestion.options.map((option, index) => (
+                  <label
+                    key={index}
+                    className={`d-flex align-items-center p-3 border rounded cursor-pointer ${
+                      answers[currentQuestion.id] === option
+                        ? 'border-primary bg-primary bg-opacity-10'
+                        : 'border-secondary'
+                    }`}
+                    style={{cursor: 'pointer'}}
+                  >
+                    <input
+                      type="radio"
+                      name={`question-${currentQuestion.id}`}
+                      value={option}
+                      checked={answers[currentQuestion.id] === option}
+                      onChange={() => handleAnswerSelect(currentQuestion.id, option)}
+                      className="form-check-input me-3"
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="d-flex justify-content-between align-items-center">
+              <button
+                onClick={previousQuestion}
+                disabled={currentQuestionIndex === 0}
+                className="btn btn-outline-secondary d-flex align-items-center"
+              >
+                <i className="bi bi-chevron-left me-1"></i>
+                Previous
+              </button>
+
+              {isLastQuestion ? (
+                <button
+                  onClick={handleQuizSubmit}
+                  className="btn btn-success fw-medium"
+                >
+                  Submit Quiz
+                </button>
+              ) : (
+                <button
+                  onClick={nextQuestion}
+                  className="btn btn-primary d-flex align-items-center"
+                >
+                  Next
+                  <i className="bi bi-chevron-right ms-1"></i>
+                </button>
+              )}
+            </div>
+
+            {/* Offline indicator */}
+            {!isOnline && (
+              <div className="alert alert-warning d-flex align-items-center mt-4">
+                <i className="bi bi-exclamation-triangle me-2"></i>
+                <small>Taking quiz offline - results will sync when you reconnect</small>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

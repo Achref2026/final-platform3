@@ -125,28 +125,28 @@ const PWAInstallPrompt = () => {
   // For iOS, show manual instructions since beforeinstallprompt isn't supported
   if (deviceType === 'ios' && !deferredPrompt) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-40">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-4">
-          <div className="flex items-start">
-            <div className="text-2xl mr-3">📱</div>
-            <div className="flex-1">
-              <h4 className="font-semibold text-sm">Install Drive School DZ</h4>
-              <p className="text-xs opacity-90 mt-1">
-                Add to home screen for quick access and offline features
-              </p>
+      <div className="position-fixed bottom-0 start-0 end-0 p-3" style={{zIndex: 1040}}>
+        <div className="d-md-none d-lg-block" style={{maxWidth: '400px', marginLeft: 'auto'}}>
+          <div className="bg-primary text-white rounded shadow-lg p-3">
+            <div className="d-flex align-items-start">
+              <div className="fs-3 me-3">📱</div>
+              <div className="flex-grow-1">
+                <h6 className="fw-semibold small mb-1">Install Drive School DZ</h6>
+                <p className="small mb-2 opacity-75">
+                  Add to home screen for quick access and offline features
+                </p>
+                <button
+                  onClick={() => setShowInstallPrompt(true)}
+                  className="btn btn-light btn-sm"
+                >
+                  Show Instructions
+                </button>
+              </div>
               <button
-                onClick={() => setShowInstallPrompt(true)}
-                className="text-xs bg-white bg-opacity-20 px-3 py-1 rounded mt-2 hover:bg-opacity-30 transition-colors"
-              >
-                Show Instructions
-              </button>
+                onClick={handleDismiss}
+                className="btn-close btn-close-white ms-2"
+              ></button>
             </div>
-            <button
-              onClick={handleDismiss}
-              className="text-white opacity-70 hover:opacity-100 ml-2"
-            >
-              ✕
-            </button>
           </div>
         </div>
       </div>
@@ -156,28 +156,30 @@ const PWAInstallPrompt = () => {
   // Android/Desktop install prompt
   if (showInstallPrompt && deferredPrompt) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-40">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-4">
-          <div className="flex items-start">
-            <div className="text-2xl mr-3">📱</div>
-            <div className="flex-1">
-              <h4 className="font-semibold">Install Drive School DZ</h4>
-              <p className="text-sm opacity-90 mt-1">
-                Get offline quizzes, push notifications, and quick access!
-              </p>
-              <div className="flex space-x-2 mt-3">
-                <button
-                  onClick={handleInstallClick}
-                  className="bg-white text-blue-600 px-4 py-2 rounded text-sm font-medium hover:bg-gray-100 transition-colors"
-                >
-                  Install
-                </button>
-                <button
-                  onClick={handleDismiss}
-                  className="text-white opacity-70 hover:opacity-100 px-2 py-2 text-sm"
-                >
-                  Maybe later
-                </button>
+      <div className="position-fixed bottom-0 start-0 end-0 p-3" style={{zIndex: 1040}}>
+        <div className="d-md-none d-lg-block" style={{maxWidth: '400px', marginLeft: 'auto'}}>
+          <div className="bg-primary text-white rounded shadow-lg p-3">
+            <div className="d-flex align-items-start">
+              <div className="fs-3 me-3">📱</div>
+              <div className="flex-grow-1">
+                <h6 className="fw-semibold mb-1">Install Drive School DZ</h6>
+                <p className="small opacity-75 mb-3">
+                  Get offline quizzes, push notifications, and quick access!
+                </p>
+                <div className="d-flex gap-2">
+                  <button
+                    onClick={handleInstallClick}
+                    className="btn btn-light btn-sm fw-medium"
+                  >
+                    Install
+                  </button>
+                  <button
+                    onClick={handleDismiss}
+                    className="btn btn-link btn-sm text-white text-decoration-none opacity-75"
+                  >
+                    Maybe later
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -191,50 +193,53 @@ const PWAInstallPrompt = () => {
     const instructions = getInstallInstructions();
     
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-          <div className="p-6">
-            <div className="text-center mb-4">
-              <div className="text-4xl mb-2">{instructions.icon}</div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                {instructions.title}
-              </h3>
-            </div>
-            
-            <div className="space-y-3 mb-6">
-              {instructions.steps.map((step, index) => (
-                <div key={index} className="flex items-start">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mr-3">
-                    {index + 1}
+      <div className="modal show d-block" style={{backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 9999}}>
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-body p-4">
+              <div className="text-center mb-4">
+                <div style={{fontSize: '3rem'}} className="mb-3">{instructions.icon}</div>
+                <h5 className="modal-title fw-semibold">
+                  {instructions.title}
+                </h5>
+              </div>
+              
+              <div className="mb-4">
+                {instructions.steps.map((step, index) => (
+                  <div key={index} className="d-flex align-items-start mb-3">
+                    <div className="badge bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" 
+                         style={{width: '24px', height: '24px', fontSize: '0.75rem'}}>
+                      {index + 1}
+                    </div>
+                    <p className="small mb-0 text-muted">{step}</p>
                   </div>
-                  <p className="text-gray-700 text-sm">{step}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            <div className="bg-blue-50 rounded-lg p-4 mb-4">
-              <h4 className="font-medium text-blue-900 mb-2">Why install?</h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• 📚 Take quizzes offline</li>
-                <li>• 🔔 Get push notifications</li>
-                <li>• ⚡ Faster app loading</li>
-                <li>• 📱 Native app experience</li>
-              </ul>
-            </div>
+              <div className="alert alert-primary">
+                <h6 className="alert-heading fw-medium">Why install?</h6>
+                <ul className="list-unstyled small mb-0">
+                  <li>• 📚 Take quizzes offline</li>
+                  <li>• 🔔 Get push notifications</li>
+                  <li>• ⚡ Faster app loading</li>
+                  <li>• 📱 Native app experience</li>
+                </ul>
+              </div>
 
-            <div className="flex space-x-3">
-              <button
-                onClick={handleDismiss}
-                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Maybe Later
-              </button>
-              <button
-                onClick={handleDismiss}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Got It!
-              </button>
+              <div className="d-grid gap-2 d-md-flex justify-content-md-center">
+                <button
+                  onClick={handleDismiss}
+                  className="btn btn-secondary"
+                >
+                  Maybe Later
+                </button>
+                <button
+                  onClick={handleDismiss}
+                  className="btn btn-primary"
+                >
+                  Got It!
+                </button>
+              </div>
             </div>
           </div>
         </div>
