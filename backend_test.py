@@ -2,10 +2,11 @@ import requests
 import sys
 import json
 import time
+import os
 from datetime import datetime, timedelta
 
 class DrivingSchoolAPITester:
-    def __init__(self, base_url="https://8ea95cf9-a7dd-4127-ad3b-a78a05980b20.preview.emergentagent.com"):
+    def __init__(self, base_url="https://22e85084-a6f7-4bae-950b-e4a68d1a6572.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.user_id = None
@@ -22,6 +23,8 @@ class DrivingSchoolAPITester:
         self.certificate_id = None
         self.notification_id = None
         self.review_id = None
+        self.teacher_id = None
+        self.document_id = None
         
         print(f"Testing backend URL: {self.base_url}")
         print("Note: This URL should match REACT_APP_BACKEND_URL in frontend/.env")
