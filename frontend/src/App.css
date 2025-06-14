@@ -62,100 +62,425 @@ body {
   min-height: 100vh;
 }
 
-/* Modern Navigation */
-.navbar-modern {
-  background: var(--pure-white);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-gray);
-  box-shadow: var(--shadow-sm);
-  padding: 1rem 0;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-}
-
-.navbar-brand-modern {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--primary-black) !important;
-  text-decoration: none;
-  display: flex;
+/* AutoKademia Brand Navbar */
+.navbar-brand {
+  display: flex !important;
   align-items: center;
   gap: 0.75rem;
-}
-
-.brand-icon {
-  width: 45px;
-  height: 45px;
-  background: var(--gradient-secondary);
-  border-radius: var(--border-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--pure-white);
+  font-weight: 800;
   font-size: 1.5rem;
-  font-weight: bold;
+  color: var(--primary-black) !important;
+  text-decoration: none !important;
 }
 
-.brand-text .main-name {
-  font-size: 1.75rem;
+.brand-logo-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.brand-name {
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--primary-black);
+  letter-spacing: -0.5px;
 }
 
-.brand-text .sub-name {
-  font-size: 0.75rem;
+.brand-tagline {
+  font-size: 0.7rem;
   color: var(--text-gray);
   font-weight: 500;
   letter-spacing: 0.5px;
+  margin-top: -2px;
 }
 
-.nav-links-modern {
+/* User Avatar */
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  background: var(--autokademia-primary);
+  color: white;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 2rem;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.875rem;
 }
 
-.nav-link-modern {
-  color: var(--dark-gray) !important;
-  font-weight: 500;
-  text-decoration: none;
+/* Hero Section */
+.hero-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  padding-top: 80px;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(30, 64, 175, 0.1);
+  backdrop-filter: blur(2px);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+}
+
+.hero-badge .badge {
+  font-size: 0.875rem;
   padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+}
+
+.hero-title {
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+}
+
+.hero-subtitle {
+  margin-bottom: 2.5rem;
+}
+
+.hero-buttons {
+  margin-bottom: 3rem;
+}
+
+.hero-visual {
+  position: relative;
+  z-index: 2;
+}
+
+.hero-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  max-width: 400px;
+}
+
+.hero-card {
+  text-align: center;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.hero-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.hero-card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.hero-stats {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 2rem;
+  margin-top: 2rem;
+}
+
+.stat-number {
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+
+/* Button Fixes - AutoKademia Brand Colors */
+.btn-primary {
+  background: var(--autokademia-primary);
+  border-color: var(--autokademia-primary);
+  color: white;
+  font-weight: 600;
   border-radius: var(--border-radius);
   transition: all 0.3s ease;
-  position: relative;
 }
 
-.nav-link-modern:hover,
-.nav-link-modern.active {
-  color: var(--primary-blue) !important;
-  background: var(--light-blue);
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+  background: var(--dark-blue);
+  border-color: var(--dark-blue);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-outline-primary {
+  background: transparent;
+  border-color: var(--autokademia-primary);
+  color: var(--autokademia-primary);
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+  background: var(--autokademia-primary);
+  border-color: var(--autokademia-primary);
+  color: white;
   transform: translateY(-1px);
 }
 
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.btn-outline-light {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: white;
+  font-weight: 600;
 }
 
-.language-selector-modern {
-  background: var(--light-gray);
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white;
+}
+
+.btn-success {
+  background: var(--success-green);
+  border-color: var(--success-green);
+}
+
+.btn-warning {
+  background: var(--warning-yellow);
+  border-color: var(--warning-yellow);
+}
+
+.btn-danger {
+  background: var(--danger-red);
+  border-color: var(--danger-red);
+}
+
+/* Feature Cards */
+.feature-card {
+  transition: all 0.3s ease;
+  border-radius: var(--border-radius-lg);
   border: 1px solid var(--border-gray);
-  border-radius: var(--border-radius);
-  padding: 0.5rem 1rem;
-  color: var(--dark-gray);
-  font-size: 0.875rem;
-  outline: none;
-  cursor: pointer;
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-xl);
+}
+
+.icon-circle {
   transition: all 0.3s ease;
 }
 
-.language-selector-modern:hover {
-  background: var(--pure-white);
-  border-color: var(--primary-blue);
+.feature-card:hover .icon-circle {
+  transform: scale(1.1);
+}
+
+/* Review Cards */
+.review-card {
+  transition: all 0.3s ease;
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--border-gray);
+}
+
+.review-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.reviewer-avatar {
+  width: 50px;
+  height: 50px;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+/* Contact Section */
+.contact-section {
+  background: var(--autokademia-primary);
+}
+
+.contact-icon {
+  width: 60px;
+  text-align: center;
+}
+
+.contact-form {
+  border-radius: var(--border-radius-lg);
+}
+
+/* School Cards */
+.school-card {
+  transition: all 0.3s ease;
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+}
+
+.school-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+.school-price .badge {
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+}
+
+.stars .star {
+  font-size: 1.1rem;
+}
+
+/* Status Badges */
+.status-pending-documents {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-pending-approval {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.status-approved {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-rejected {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Dashboard */
+.dashboard-page {
+  background: var(--off-white);
+  min-height: 100vh;
+}
+
+.dashboard-stats .stat-item {
+  text-align: center;
+}
+
+.enrollment-card {
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.enrollment-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.profile-avatar {
+  font-weight: bold;
+}
+
+/* Loading States */
+.loading-section {
+  padding: 4rem 0;
+}
+
+.no-results {
+  padding: 4rem 0;
+}
+
+.no-results-icon {
+  opacity: 0.5;
+}
+
+/* Search and Filters */
+.search-filters-section .card {
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--border-gray);
+}
+
+.input-group-text {
+  background: var(--light-gray);
+  border-color: var(--border-gray);
+  color: var(--text-gray);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--autokademia-primary);
+  box-shadow: 0 0 0 0.2rem rgba(30, 64, 175, 0.25);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .hero-section {
+    padding-top: 100px;
+  }
+  
+  .hero-title {
+    font-size: 2.5rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.125rem;
+  }
+  
+  .hero-buttons {
+    flex-direction: column;
+  }
+  
+  .hero-cards {
+    grid-template-columns: 1fr;
+    max-width: 300px;
+  }
+  
+  .hero-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+  
+  .brand-name {
+    font-size: 1.25rem;
+  }
+  
+  .brand-tagline {
+    font-size: 0.65rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-section {
+    padding-top: 120px;
+  }
+  
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .hero-buttons .btn {
+    width: 100%;
+  }
+  
+  .feature-card,
+  .review-card,
+  .contact-form {
+    padding: 2rem;
+  }
 }
 
 /* Modern Hero Section */
