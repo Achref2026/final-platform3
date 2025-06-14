@@ -1,186 +1,212 @@
 import React, { useState, useEffect } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import axios from 'axios';
 import './App.css';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
-// Import components
-import MobileNotifications from './components/MobileNotifications';
-import OfflineQuiz from './components/OfflineQuiz';
-import PWAInstallPrompt from './components/PWAInstallPrompt';
+// Offline Quiz Component (now removed from main interface)
+const OfflineQuiz = ({ onClose }) => {
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [score, setScore] = useState(0);
+  const [showScore, setShowScore] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const questions = [
+    {
+      question: "What does a red traffic light mean?",
+      options: [
+        { text: "Go", correct: false },
+        { text: "Stop", correct: true },
+        { text: "Slow down", correct: false },
+        { text: "Caution", correct: false }
+      ]
+    },
+    {
+      question: "At a stop sign, you should:",
+      options: [
+        { text: "Slow down and proceed", correct: false },
+        { text: "Come to a complete stop", correct: true },
+        { text: "Only stop if traffic is coming", correct: false },
+        { text: "Speed up to get through quickly", correct: false }
+      ]
+    },
+    {
+      question: "When should you use your turn signals?",
+      options: [
+        { text: "Only when turning left", correct: false },
+        { text: "Only when turning right", correct: false },
+        { text: "When changing lanes or turning", correct: true },
+        { text: "Only at intersections", correct: false }
+      ]
+    }
+  ];
 
-// Algerian States
-const ALGERIAN_STATES = [
-  "Adrar", "Chlef", "Laghouat", "Oum El Bouaghi", "Batna", "Béjaïa", "Biskra", 
-  "Béchar", "Blida", "Bouira", "Tamanrasset", "Tébessa", "Tlemcen", "Tiaret", 
-  "Tizi Ouzou", "Alger", "Djelfa", "Jijel", "Sétif", "Saïda", "Skikda", 
-  "Sidi Bel Abbès", "Annaba", "Guelma", "Constantine", "Médéa", "Mostaganem", 
-  "M'Sila", "Mascara", "Ouargla", "Oran", "El Bayadh", "Illizi", 
-  "Bordj Bou Arréridj", "Boumerdès", "El Tarf", "Tindouf", "Tissemsilt", 
-  "El Oued", "Khenchela", "Souk Ahras", "Tipaza", "Mila", "Aïn Defla", 
-  "Naâma", "Aïn Témouchent", "Ghardaïa", "Relizane", "Timimoun", 
-  "Bordj Badji Mokhtar", "Ouled Djellal", "Béni Abbès", "In Salah", 
-  "In Guezzam", "Touggourt", "Djanet", "El M'Ghair", "El Meniaa"
-];
+  const handleAnswerClick = (isCorrect) => {
+    setSelectedAnswer(isCorrect);
+    
+    setTimeout(() => {
+      if (isCorrect) {
+        setScore(score + 1);
+      }
 
-// Multi-language support
-const translations = {
-  en: {
-    appName: "DriveMaster Algeria",
-    tagline: "Professional Driving Education Platform",
-    home: "Home",
-    findSchools: "Schools",
-    dashboard: "Dashboard",
-    login: "Sign In",
-    register: "Get Started",
-    logout: "Sign Out",
-    welcome: "Welcome",
-    email: "Email Address",
-    password: "Password",
-    phone: "Phone Number",
-    address: "Address",
-    state: "Wilaya",
-    loading: "Loading...",
-    enrollNow: "Enroll Now",
-    viewDetails: "View Details",
-    heroTitle: "Master Professional Driving in Algeria",
-    heroSubtitle: "Connect with Algeria's premier driving schools across all 58 wilayas. Experience world-class training with certified instructors and modern facilities.",
-    heroButton1: "Explore Driving Schools",
-    heroButton2: "Start Free Practice",
-    whyChoose: "Why Choose DriveMaster",
-    feature1Title: "Certified Excellence",
-    feature1Desc: "All driving schools are government-certified with experienced instructors meeting national standards.",
-    feature2Title: "Complete Training Program",
-    feature2Desc: "Comprehensive curriculum covering theory, parking practice, and real-world driving experience.",
-    feature3Title: "State-Wide Coverage",
-    feature3Desc: "Access to driving schools across all 58 Algerian wilayas with consistent quality standards.",
-    offlineQuiz: "Practice Tests",
-    stat1: "58",
-    stat1Label: "Wilayas Covered",
-    stat2: "200+",
-    stat2Label: "Certified Schools",
-    stat3: "15K+",
-    stat3Label: "Students Trained"
-  },
-  ar: {
-    appName: "ماستر القيادة الجزائر",
-    tagline: "منصة تعليم القيادة المهنية",
-    home: "الرئيسية",
-    findSchools: "المدارس",
-    dashboard: "لوحة التحكم",
-    login: "تسجيل الدخول",
-    register: "ابدأ الآن",
-    logout: "تسجيل الخروج",
-    welcome: "مرحباً",
-    email: "البريد الإلكتروني",
-    password: "كلمة المرور",
-    phone: "رقم الهاتف",
-    address: "العنوان",
-    state: "الولاية",
-    loading: "جاري التحميل...",
-    enrollNow: "سجل الآن",
-    viewDetails: "عرض التفاصيل",
-    heroTitle: "إتقان القيادة المهنية في الجزائر",
-    heroSubtitle: "تواصل مع أفضل مدارس تعليم القيادة في الجزائر عبر جميع الولايات الـ58. استمتع بتدريب عالمي المستوى مع مدربين معتمدين ومرافق حديثة.",
-    heroButton1: "استكشف مدارس القيادة",
-    heroButton2: "ابدأ التمرين المجاني",
-    whyChoose: "لماذا تختار ماستر القيادة",
-    feature1Title: "التميز المعتمد",
-    feature1Desc: "جميع مدارس القيادة معتمدة حكومياً مع مدربين ذوي خبرة يلبون المعايير الوطنية.",
-    feature2Title: "برنامج تدريبي شامل",
-    feature2Desc: "منهج شامل يغطي النظريات وممارسة الوقوف والقيادة في العالم الحقيقي.",
-    feature3Title: "تغطية على مستوى الولاية",
-    feature3Desc: "الوصول إلى مدارس القيادة عبر جميع الولايات الجزائرية الـ58 بمعايير جودة متسقة.",
-    offlineQuiz: "اختبارات التمرين",
-    stat1: "58",
-    stat1Label: "ولاية مغطاة",
-    stat2: "200+",
-    stat2Label: "مدرسة معتمدة",
-    stat3: "15K+",
-    stat3Label: "طالب مدرب"
-  },
-  fr: {
-    appName: "DriveMaster Algérie",
-    tagline: "Plateforme d'Éducation de Conduite Professionnelle",
-    home: "Accueil",
-    findSchools: "Écoles",
-    dashboard: "Tableau de Bord",
-    login: "Connexion",
-    register: "Commencer",
-    logout: "Déconnexion",
-    welcome: "Bienvenue",
-    email: "Adresse Email",
-    password: "Mot de Passe",
-    phone: "Numéro de Téléphone",
-    address: "Adresse",
-    state: "Wilaya",
-    loading: "Chargement...",
-    enrollNow: "S'inscrire",
-    viewDetails: "Voir Détails",
-    heroTitle: "Maîtrisez la Conduite Professionnelle en Algérie",
-    heroSubtitle: "Connectez-vous avec les meilleures auto-écoles d'Algérie dans les 58 wilayas. Profitez d'une formation de classe mondiale avec des instructeurs certifiés et des installations modernes.",
-    heroButton1: "Explorer les Auto-écoles",
-    heroButton2: "Commencer la Pratique Gratuite",
-    whyChoose: "Pourquoi Choisir DriveMaster",
-    feature1Title: "Excellence Certifiée",
-    feature1Desc: "Toutes les auto-écoles sont certifiées gouvernementales avec des instructeurs expérimentés répondant aux normes nationales.",
-    feature2Title: "Programme de Formation Complet",
-    feature2Desc: "Curriculum complet couvrant la théorie, la pratique du stationnement et l'expérience de conduite réelle.",
-    feature3Title: "Couverture à l'Échelle de l'État",
-    feature3Desc: "Accès aux auto-écoles dans les 58 wilayas algériennes avec des normes de qualité cohérentes.",
-    offlineQuiz: "Tests de Pratique",
-    stat1: "58",
-    stat1Label: "Wilayas Couvertes",
-    stat2: "200+",
-    stat2Label: "Écoles Certifiées",
-    stat3: "15K+",
-    stat3Label: "Étudiants Formés"
-  }
+      const nextQuestion = currentQuestion + 1;
+      if (nextQuestion < questions.length) {
+        setCurrentQuestion(nextQuestion);
+        setSelectedAnswer(null);
+      } else {
+        setShowScore(true);
+      }
+    }, 1000);
+  };
+
+  const resetQuiz = () => {
+    setCurrentQuestion(0);
+    setScore(0);
+    setShowScore(false);
+    setSelectedAnswer(null);
+  };
+
+  return (
+    <div className="modal show d-block" style={{backgroundColor: 'rgba(0, 0, 0, 0.75)'}} tabIndex="-1">
+      <div className="modal-dialog modal-dialog-centered modal-lg">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">📚 Practice Quiz - Traffic Rules</h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          
+          <div className="modal-body">
+            {showScore ? (
+              <div className="text-center py-5">
+                <div className="display-4 mb-4">
+                  {score >= questions.length * 0.7 ? '🎉' : '📚'}
+                </div>
+                <h3 className="mb-3">
+                  You scored {score} out of {questions.length}
+                </h3>
+                <p className="lead mb-4">
+                  {score >= questions.length * 0.7 
+                    ? 'Great job! You have a good understanding of traffic rules.'
+                    : 'Keep studying! Practice makes perfect.'
+                  }
+                </p>
+                <div className="d-flex gap-3 justify-content-center">
+                  <button onClick={resetQuiz} className="btn btn-primary">
+                    Try Again
+                  </button>
+                  <button onClick={onClose} className="btn btn-secondary">
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <span className="text-muted">
+                    Question {currentQuestion + 1} of {questions.length}
+                  </span>
+                  <div className="progress" style={{width: '200px'}}>
+                    <div 
+                      className="progress-bar" 
+                      style={{width: `${((currentQuestion + 1) / questions.length) * 100}%`}}
+                    ></div>
+                  </div>
+                </div>
+                
+                <div className="mb-4">
+                  <h4 className="mb-4">{questions[currentQuestion].question}</h4>
+                  
+                  <div className="d-grid gap-3">
+                    {questions[currentQuestion].options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswerClick(option.correct)}
+                        disabled={selectedAnswer !== null}
+                        className={`btn btn-outline-primary text-start p-3 ${
+                          selectedAnswer !== null
+                            ? option.correct
+                              ? 'btn-success'
+                              : selectedAnswer === option.correct
+                                ? 'btn-danger'
+                                : 'btn-outline-secondary'
+                            : ''
+                        }`}
+                      >
+                        {option.text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// PWA Install Prompt Component
+const PWAInstallPrompt = () => {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    }
+  };
+
+  if (!showInstallPrompt) return null;
+
+  return (
+    <div className="position-fixed bottom-0 start-0 end-0 bg-primary text-white p-3 m-3 rounded shadow-lg" style={{zIndex: 9999}}>
+      <div className="d-flex align-items-center justify-content-between">
+        <div>
+          <h6 className="mb-1">📱 Install AutoKademia App</h6>
+          <p className="mb-0 small">Get the full experience with our mobile app!</p>
+        </div>
+        <div className="d-flex gap-2">
+          <button onClick={handleInstallClick} className="btn btn-light btn-sm">
+            Install
+          </button>
+          <button 
+            onClick={() => setShowInstallPrompt(false)} 
+            className="btn btn-outline-light btn-sm"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 function App() {
   // State management
-  const [language, setLanguage] = useState('en');
-  const [currentPage, setCurrentPage] = useState('home');
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  
-  // States and search
-  const [states] = useState(ALGERIAN_STATES);
-  const [selectedState, setSelectedState] = useState('');
-  const [drivingSchools, setDrivingSchools] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
-  const [minRating, setMinRating] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    total_pages: 1,
-    total_count: 0
-  });
-  const [searchSuggestions, setSearchSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [filterStats, setFilterStats] = useState(null);
-  
-  // Modal and UI states
+  const [currentPage, setCurrentPage] = useState('home');
+  const [currentLanguage, setCurrentLanguage] = useState('en');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login');
-  const [authLoading, setAuthLoading] = useState(false);
   const [showOfflineQuiz, setShowOfflineQuiz] = useState(false);
-  
-  // Message states
-  const [globalError, setGlobalError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  
-  // Dashboard and notifications
-  const [dashboardData, setDashboardData] = useState(null);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-  const [showMobileNotifications, setShowMobileNotifications] = useState(false);
   
   // Form states
   const [authData, setAuthData] = useState({
@@ -194,222 +220,274 @@ function App() {
     gender: 'male',
     state: ''
   });
+  
+  // Loading and message states
+  const [authLoading, setAuthLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [globalError, setGlobalError] = useState('');
+  
+  // Data states
+  const [drivingSchools, setDrivingSchools] = useState([]);
+  const [states, setStates] = useState([]);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    total_pages: 1,
+    has_prev: false,
+    has_next: false
+  });
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    state: '',
+    search: '',
+    min_price: '',
+    max_price: '',
+    min_rating: '',
+    sort_by: 'name',
+    sort_order: 'asc'
+  });
 
-  // Get current translations
-  const t = translations[language];
+  // Get backend URL from environment
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
-  // Network status monitoring
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Auto-dismiss messages
-  useEffect(() => {
-    if (globalError) {
-      const timer = setTimeout(() => setGlobalError(''), 5000);
-      return () => clearTimeout(timer);
+  // Translations
+  const translations = {
+    en: {
+      // Navigation
+      home: 'Home',
+      schools: 'Schools',
+      dashboard: 'Dashboard',
+      login: 'Login',
+      register: 'Register',
+      logout: 'Logout',
+      
+      // Home page
+      welcome: 'Master Driving in Algeria',
+      subtitle: 'Join thousands of students learning to drive safely across all 58 wilayas with certified instructors.',
+      findSchools: 'Find Schools',
+      learnMore: 'Learn More',
+      
+      // Schools page
+      searchPlaceholder: 'Search driving schools...',
+      filterByState: 'Filter by State',
+      allStates: 'All States',
+      minPrice: 'Min Price',
+      maxPrice: 'Max Price',
+      minRating: 'Min Rating',
+      sortBy: 'Sort By',
+      
+      // Common
+      email: 'Email',
+      phone: 'Phone',
+      address: 'Address',
+      state: 'State',
+      enrollNow: 'Enroll Now',
+      viewDetails: 'View Details',
+      
+      // Features
+      features: 'Why Choose AutoKademia?',
+      featureTitle1: 'Certified Instructors',
+      featureDesc1: 'Learn from experienced, certified driving instructors across Algeria.',
+      featureTitle2: 'Comprehensive Courses',
+      featureDesc2: 'Theory, parking, and road practice - complete driving education.',
+      featureTitle3: 'Flexible Scheduling',
+      featureDesc3: 'Book lessons at your convenience with our flexible scheduling system.',
+      featureTitle4: 'Modern Vehicles',
+      featureDesc4: 'Practice with well-maintained, modern vehicles equipped with safety features.',
+      
+      // Reviews
+      reviews: 'What Our Students Say',
+      
+      // Contact
+      contactUs: 'Contact Us',
+      contactDesc: 'Have questions? Get in touch with our team.',
+      contactEmail: 'info@autokademia.dz',
+      contactPhone: '+213 555 123 456',
+      contactAddress: 'Algiers, Algeria'
+    },
+    ar: {
+      // Navigation
+      home: 'الرئيسية',
+      schools: 'المدارس',
+      dashboard: 'لوحة القيادة',
+      login: 'تسجيل الدخول',
+      register: 'إنشاء حساب',
+      logout: 'تسجيل الخروج',
+      
+      // Home page
+      welcome: 'تعلم القيادة في الجزائر',
+      subtitle: 'انضم إلى آلاف الطلاب الذين يتعلمون القيادة الآمنة في جميع الولايات الـ58 مع مدربين معتمدين.',
+      findSchools: 'البحث عن المدارس',
+      learnMore: 'تعرف أكثر',
+      
+      // Schools page
+      searchPlaceholder: 'البحث عن مدارس تعليم القيادة...',
+      filterByState: 'تصفية حسب الولاية',
+      allStates: 'جميع الولايات',
+      minPrice: 'أقل سعر',
+      maxPrice: 'أعلى سعر',
+      minRating: 'أقل تقييم',
+      sortBy: 'ترتيب حسب',
+      
+      // Common
+      email: 'البريد الإلكتروني',
+      phone: 'الهاتف',
+      address: 'العنوان',
+      state: 'الولاية',
+      enrollNow: 'التسجيل الآن',
+      viewDetails: 'عرض التفاصيل',
+      
+      // Features
+      features: 'لماذا تختار أوتوكاديميا؟',
+      featureTitle1: 'مدربون معتمدون',
+      featureDesc1: 'تعلم من مدربي القيادة ذوي الخبرة والمعتمدين في جميع أنحاء الجزائر.',
+      featureTitle2: 'دورات شاملة',
+      featureDesc2: 'النظرية والتوقيف والممارسة على الطريق - تعليم قيادة كامل.',
+      featureTitle3: 'جدولة مرنة',
+      featureDesc3: 'احجز الدروس في الوقت المناسب لك مع نظام الجدولة المرن.',
+      featureTitle4: 'مركبات حديثة',
+      featureDesc4: 'تدرب مع مركبات حديثة مصانة جيداً ومجهزة بميزات الأمان.',
+      
+      // Reviews
+      reviews: 'ماذا يقول طلابنا',
+      
+      // Contact
+      contactUs: 'اتصل بنا',
+      contactDesc: 'لديك أسئلة؟ تواصل مع فريقنا.',
+      contactEmail: 'info@autokademia.dz',
+      contactPhone: '+213 555 123 456',
+      contactAddress: 'الجزائر العاصمة، الجزائر'
+    },
+    fr: {
+      // Navigation
+      home: 'Accueil',
+      schools: 'Écoles',
+      dashboard: 'Tableau de bord',
+      login: 'Connexion',
+      register: 'S\'inscrire',
+      logout: 'Déconnexion',
+      
+      // Home page
+      welcome: 'Maîtriser la conduite en Algérie',
+      subtitle: 'Rejoignez des milliers d\'étudiants apprenant à conduire en sécurité dans les 58 wilayas avec des instructeurs certifiés.',
+      findSchools: 'Trouver des écoles',
+      learnMore: 'En savoir plus',
+      
+      // Schools page
+      searchPlaceholder: 'Rechercher des auto-écoles...',
+      filterByState: 'Filtrer par wilaya',
+      allStates: 'Toutes les wilayas',
+      minPrice: 'Prix min',
+      maxPrice: 'Prix max',
+      minRating: 'Note min',
+      sortBy: 'Trier par',
+      
+      // Common
+      email: 'Email',
+      phone: 'Téléphone',
+      address: 'Adresse',
+      state: 'Wilaya',
+      enrollNow: 'S\'inscrire maintenant',
+      viewDetails: 'Voir les détails',
+      
+      // Features
+      features: 'Pourquoi choisir AutoKademia?',
+      featureTitle1: 'Instructeurs certifiés',
+      featureDesc1: 'Apprenez avec des instructeurs de conduite expérimentés et certifiés à travers l\'Algérie.',
+      featureTitle2: 'Cours complets',
+      featureDesc2: 'Théorie, stationnement et pratique routière - formation complète à la conduite.',
+      featureTitle3: 'Horaires flexibles',
+      featureDesc3: 'Réservez des cours à votre convenance avec notre système de planification flexible.',
+      featureTitle4: 'Véhicules modernes',
+      featureDesc4: 'Pratiquez avec des véhicules modernes bien entretenus et équipés de dispositifs de sécurité.',
+      
+      // Reviews
+      reviews: 'Ce que disent nos étudiants',
+      
+      // Contact
+      contactUs: 'Nous contacter',
+      contactDesc: 'Des questions? Contactez notre équipe.',
+      contactEmail: 'info@autokademia.dz',
+      contactPhone: '+213 555 123 456',
+      contactAddress: 'Alger, Algérie'
     }
-  }, [globalError]);
+  };
 
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(''), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
+  const t = translations[currentLanguage];
 
+  // Initialize app
   useEffect(() => {
-    if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(''), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [errorMessage]);
-
-  // Initialize user from localStorage
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const userData = localStorage.getItem('user_data');
+    // Check for stored auth token
+    const token = localStorage.getItem('authToken');
+    const userData = localStorage.getItem('userData');
     
     if (token && userData) {
       try {
         setUser(JSON.parse(userData));
       } catch (error) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user_data');
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
       }
     }
-  }, []);
-
-  // Language functions
-  const changeLanguage = (lang) => {
-    setLanguage(lang);
-    localStorage.setItem('preferred_language', lang);
-  };
-
-  // Load saved language preference
-  useEffect(() => {
-    const savedLang = localStorage.getItem('preferred_language');
-    if (savedLang && translations[savedLang]) {
-      setLanguage(savedLang);
-    }
-  }, []);
-
-  // Notification functions
-  const markNotificationAsRead = async (notificationId) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === notificationId ? {...n, is_read: true} : n)
-    );
-    setUnreadNotificationCount(prev => Math.max(0, prev - 1));
-  };
-
-  const markAllNotificationsAsRead = async () => {
-    setNotifications(prev => prev.map(n => ({...n, is_read: true})));
-    setUnreadNotificationCount(0);
-  };
-
-  const deleteNotification = async (notificationId) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    setUnreadNotificationCount(prev => {
-      const notification = notifications.find(n => n.id === notificationId);
-      return notification && !notification.is_read ? Math.max(0, prev - 1) : prev;
-    });
-  };
-
-  // Utility functions
-  const showSuccess = (message) => {
-    setSuccessMessage(message);
-    setErrorMessage('');
-    setGlobalError('');
-  };
-
-  const showError = (message) => {
-    setErrorMessage(message);
-    setSuccessMessage('');
-    setGlobalError('');
-  };
-
-  const handleApiError = (error, defaultMessage) => {
-    const message = error.message || defaultMessage;
-    setGlobalError(message);
-    console.error('API Error:', error);
-  };
-
-  // Fetch dashboard data
-  const fetchDashboardData = async () => {
-    if (!user) return;
     
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${BACKEND_URL}/api/dashboard`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+    // Fetch initial data
+    fetchStates();
+  }, []);
 
-      if (response.ok) {
-        const data = await response.json();
-        setDashboardData(data);
-        
-        // Update notifications
-        if (data.notifications) {
-          setNotifications(data.notifications);
-          const unread = data.notifications.filter(n => !n.is_read).length;
-          setUnreadNotificationCount(unread);
-        }
-      } else {
-        throw new Error('Failed to fetch dashboard data');
-      }
+  // Fetch states from API
+  const fetchStates = async () => {
+    try {
+      const response = await axios.get(`${backendUrl}/api/states`);
+      setStates(response.data.states);
     } catch (error) {
-      handleApiError(error, 'Failed to load dashboard');
+      console.error('Error fetching states:', error);
+      setGlobalError('Failed to load states');
     }
   };
 
-  // Load dashboard when user logs in
-  useEffect(() => {
-    if (user && currentPage === 'dashboard') {
-      fetchDashboardData();
-    }
-  }, [user, currentPage]);
-
-  // Authentication handlers
+  // Auth functions
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
-
+    
     try {
-      const formData = new FormData();
-      
-      // Common fields
-      formData.append('email', authData.email);
-      formData.append('password', authData.password);
-      
-      // Registration-specific fields
-      if (authMode === 'register') {
-        formData.append('first_name', authData.first_name);
-        formData.append('last_name', authData.last_name);
-        formData.append('phone', authData.phone);
-        formData.append('address', authData.address);
-        formData.append('date_of_birth', authData.date_of_birth);
-        formData.append('gender', authData.gender);
-        formData.append('state', authData.state);
-      }
-
       const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const url = `${BACKEND_URL}${endpoint}`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        body: authMode === 'register' ? formData : JSON.stringify({
+     
+      let requestData;
+      if (authMode === 'login') {
+        requestData = {
           email: authData.email,
           password: authData.password
-        }),
-        headers: authMode === 'login' ? {
-          'Content-Type': 'application/json',
-        } : {}
-      });
-
-      if (!response.ok) {
-        let errorMessage = `${authMode === 'login' ? t.login : t.register} failed`;
-        try {
-          const errorData = await response.json();
-          if (errorData.detail) {
-            if (Array.isArray(errorData.detail)) {
-              errorMessage = errorData.detail.map(err => err.msg).join(', ');
-            } else {
-              errorMessage = errorData.detail;
-            }
-          }
-        } catch {
-          const errorText = await response.text();
-          errorMessage = errorText || errorMessage;
-        }
-        throw new Error(errorMessage);
+        };
+      } else {
+        requestData = new FormData();
+        Object.keys(authData).forEach(key => {
+          requestData.append(key, authData[key]);
+        });
       }
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        localStorage.setItem('auth_token', data.access_token);
-        localStorage.setItem('user_data', JSON.stringify(data.user));
-        setUser(data.user);
-        setSuccessMessage(`${authMode === 'login' ? t.login : t.register} successful!`);
+      const response = await axios.post(`${backendUrl}${endpoint}`, requestData, {
+        headers: authMode === 'register' ? {
+          'Content-Type': 'multipart/form-data'
+        } : {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.access_token) {
+        localStorage.setItem('authToken', response.data.access_token);
+        localStorage.setItem('userData', JSON.stringify(response.data.user));
+        setUser(response.data.user);
+        setShowAuthModal(false);
+        setSuccessMessage(response.data.message || 'Authentication successful!');
         
-        setTimeout(() => {
-          setShowAuthModal(false);
-          setSuccessMessage('');
-        }, 1500);
-        
+        // Reset form
         setAuthData({
           email: '',
           password: '',
@@ -421,172 +499,131 @@ function App() {
           gender: 'male',
           state: ''
         });
+        
+        // Navigate to dashboard if user is logged in
+        if (response.data.user.role !== 'guest') {
+          setCurrentPage('dashboard');
+          fetchDashboardData();
+        }
       }
     } catch (error) {
       console.error('Auth error:', error);
-      setErrorMessage(`${authMode === 'login' ? t.login : t.register} failed: ${error.message}`);
+      setErrorMessage(error.response?.data?.detail || 'Authentication failed');
     } finally {
       setAuthLoading(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userData');
     setUser(null);
     setCurrentPage('home');
-    setDashboardData(null);
+    setSuccessMessage('Logged out successfully');
   };
 
-  const fetchDrivingSchools = async (options = {}) => {
+  // Dashboard data fetch
+  const fetchDashboardData = async () => {
+    if (!user) return;
+    
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get(`${backendUrl}/api/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setDashboardData(response.data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setGlobalError('Failed to load dashboard data');
+    }
+  };
+
+  // Driving schools fetch
+  const fetchDrivingSchools = async (params = {}) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      
-      if (options.state || selectedState) {
-        params.append('state', options.state || selectedState);
-      }
-      if (options.search || searchQuery) {
-        params.append('search', options.search || searchQuery);
-      }
-      if (options.min_price || priceRange.min) {
-        params.append('min_price', options.min_price || priceRange.min);
-      }
-      if (options.max_price || priceRange.max) {
-        params.append('max_price', options.max_price || priceRange.max);
-      }
-      if (options.min_rating || minRating) {
-        params.append('min_rating', options.min_rating || minRating);
-      }
-      if (options.sort_by || sortBy) {
-        params.append('sort_by', options.sort_by || sortBy);
-      }
-      if (options.sort_order || sortOrder) {
-        params.append('sort_order', options.sort_order || sortOrder);
-      }
-      if (options.page) {
-        params.append('page', options.page);
-      }
-      
-      const url = `${BACKEND_URL}/api/driving-schools?${params.toString()}`;
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch driving schools: ${response.status}`);
-      }
-      const data = await response.json();
-      setDrivingSchools(data.schools || []);
-      setPagination(data.pagination || { current_page: 1, total_pages: 1, total_count: 0 });
+      const queryParams = new URLSearchParams({
+        page: params.page || pagination.current_page || 1,
+        limit: 12,
+        ...filters,
+        ...params
+      });
+
+      const response = await axios.get(`${backendUrl}/api/driving-schools?${queryParams}`);
+      setDrivingSchools(response.data.schools);
+      setPagination(response.data.pagination);
     } catch (error) {
-      handleApiError(error, 'Failed to load driving schools. Please try again.');
+      console.error('Error fetching driving schools:', error);
+      setGlobalError('Failed to load driving schools');
       setDrivingSchools([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSearchSuggestions = async (query) => {
-    if (!query || query.length < 2) {
-      setSearchSuggestions([]);
-      return;
-    }
-    
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/driving-schools/search-suggestions?q=${encodeURIComponent(query)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSearchSuggestions(data.suggestions || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch search suggestions:', error);
-    }
-  };
-
-  const fetchFilterStats = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/driving-schools/filters/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setFilterStats(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch filter stats:', error);
-    }
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchDrivingSchools({ page: 1 });
-  };
-
-  const handleSearchInputChange = (value) => {
-    setSearchQuery(value);
-    fetchSearchSuggestions(value);
-    setShowSuggestions(true);
-  };
-
-  const clearFilters = () => {
-    setSelectedState('');
-    setSearchQuery('');
-    setPriceRange({ min: '', max: '' });
-    setMinRating('');
-    setSortBy('name');
-    setSortOrder('asc');
-    fetchDrivingSchools();
-  };
-
+  // Handle enrollment
   const handleEnroll = async (schoolId) => {
     if (!user) {
-      setErrorMessage('Please login to enroll in a driving school');
       setShowAuthModal(true);
       return;
     }
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${BACKEND_URL}/api/enrollments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          school_id: schoolId
-        })
-      });
-
-      const data = await response.json();
+      const token = localStorage.getItem('authToken');
+      const response = await axios.post(
+        `${backendUrl}/api/enrollments`,
+        { school_id: schoolId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       
-      if (response.ok) {
-        showSuccess('Enrollment successful! Please upload required documents for manager approval.');
-        setCurrentPage('dashboard');
-        fetchDashboardData();
-      } else {
-        throw new Error(data.detail || 'Enrollment failed');
-      }
+      setSuccessMessage('Enrollment submitted successfully! Please upload required documents.');
+      setCurrentPage('dashboard');
+      fetchDashboardData();
     } catch (error) {
-      handleApiError(error, 'Failed to enroll in driving school');
+      console.error('Enrollment error:', error);
+      setGlobalError(error.response?.data?.detail || 'Failed to enroll');
     }
+  };
+
+  // Filter handlers
+  const handleFilterChange = (key, value) => {
+    const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+    fetchDrivingSchools({ ...newFilters, page: 1 });
+  };
+
+  const clearFilters = () => {
+    const clearedFilters = {
+      state: '',
+      search: '',
+      min_price: '',
+      max_price: '',
+      min_rating: '',
+      sort_by: 'name',
+      sort_order: 'asc'
+    };
+    setFilters(clearedFilters);
+    fetchDrivingSchools({ ...clearedFilters, page: 1 });
   };
 
   // Navigation Component
   const renderNavigation = () => (
-    <nav className="navbar navbar-expand-lg navbar-custom fixed-top">
+    <nav className="navbar navbar-expand-lg navbar-light bg-white fixed-top shadow-sm">
       <div className="container">
-        <a 
-          href="#" 
-          className="navbar-brand navbar-brand-custom d-flex align-items-center"
-          onClick={() => setCurrentPage('home')}
-        >
-          <div className="me-3 p-2 bg-primary rounded" style={{fontSize: '1.5rem'}}>
-            🚗
+        <a href="#" className="navbar-brand d-flex align-items-center" onClick={() => setCurrentPage('home')}>
+          <div className="brand-logo me-3">
+            <img 
+              src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDVMMzMuMzAxIDEyLjVWMjcuNUwyMCAzNUw2LjY5ODcgMjcuNVYxMi41TDIwIDVaIiBzdHJva2U9IiMxZTQwYWYiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0iIzFlNDBhZiIgZmlsbC1vcGFjaXR5PSIwLjEiLz4KPHN2ZyB4PSI4IiB5PSIxMiIgd2lkdGg9IjI0IiBoZWlnaHQ9IjE2IiB2aWV3Qm94PSIwIDAgMjQgMTYiIGZpbGw9Im5vbmUiPgo8cGF0aCBkPSJNMTkgMTJINUMzLjkgMTIgMyAxMiAzIDEyVjVDMyAzLjkgMy45IDMgNSAzSDE5QzIwLjEgMyAyMSAzLjkgMjEgNVYxMkMyMSAxMiAyMC4xIDEyIDE5IDEyWiIgZmlsbD0iIzFlNDBhZiIvPgo8Y2lyY2xlIGN4PSI3IiBjeT0iMTQiIHI9IjIiIGZpbGw9IiMxZTQwYWYiLz4KPGNpcmNsZSBjeD0iMTciIGN5PSIxNCIgcj0iMiIgZmlsbD0iIzFlNDBhZiIvPgo8cGF0aCBkPSJNMTIgMTZWMjAiIHN0cm9rZT0iIzFlNDBhZiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPHBhdGggZD0iTTggMjBIMTYiIHN0cm9rZT0iIzFlNDBhZiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+Cjwvc3ZnPgo=" 
+              alt="AutoKademia Logo" 
+              className="brand-logo-img"
+            />
           </div>
-          <div>
-            <div className="fw-bold">{t.appName}</div>
-            <div style={{fontSize: '0.75rem', opacity: 0.8}}>{t.tagline}</div>
+          <div className="brand-text">
+            <div className="brand-name">AutoKademia</div>
+            <div className="brand-tagline">Driving Excellence</div>
           </div>
         </a>
-        
+
         <button 
           className="navbar-toggler" 
           type="button" 
@@ -595,13 +632,13 @@ function App() {
         >
           <span className="navbar-toggler-icon"></span>
         </button>
-        
+
         <div className="collapse navbar-collapse" id="navbarNav">
           <ul className="navbar-nav me-auto">
             <li className="nav-item">
               <a 
                 href="#" 
-                className={`nav-link nav-link-custom ${currentPage === 'home' ? 'active' : ''}`}
+                className={`nav-link ${currentPage === 'home' ? 'active' : ''}`}
                 onClick={() => setCurrentPage('home')}
               >
                 {t.home}
@@ -610,20 +647,20 @@ function App() {
             <li className="nav-item">
               <a 
                 href="#" 
-                className={`nav-link nav-link-custom ${currentPage === 'find-schools' ? 'active' : ''}`}
+                className={`nav-link ${currentPage === 'schools' ? 'active' : ''}`}
                 onClick={() => {
-                  setCurrentPage('find-schools');
+                  setCurrentPage('schools');
                   fetchDrivingSchools();
                 }}
               >
-                {t.findSchools}
+                {t.schools}
               </a>
             </li>
-            {user && user.role !== 'guest' && (
+            {user && (
               <li className="nav-item">
                 <a 
                   href="#" 
-                  className={`nav-link nav-link-custom ${currentPage === 'dashboard' ? 'active' : ''}`}
+                  className={`nav-link ${currentPage === 'dashboard' ? 'active' : ''}`}
                   onClick={() => {
                     setCurrentPage('dashboard');
                     fetchDashboardData();
@@ -633,61 +670,83 @@ function App() {
                 </a>
               </li>
             )}
-            <li className="nav-item">
-              <a 
-                href="#" 
-                className="nav-link nav-link-custom"
-                onClick={() => setShowOfflineQuiz(true)}
-              >
-                {t.offlineQuiz}
-              </a>
-            </li>
           </ul>
-          
-          <div className="d-flex align-items-center gap-3">
-            <select
-              value={language}
-              onChange={(e) => changeLanguage(e.target.value)}
-              className="language-selector"
-            >
-              <option value="en">English</option>
-              <option value="ar">العربية</option>
-              <option value="fr">Français</option>
-            </select>
-            
+
+          <div className="navbar-nav align-items-center">
+            {/* Language Selector */}
+            <div className="nav-item me-3">
+              <select
+                value={currentLanguage}
+                onChange={(e) => setCurrentLanguage(e.target.value)}
+                className="form-select form-select-sm"
+                style={{ minWidth: '80px' }}
+              >
+                <option value="en">🇺🇸 EN</option>
+                <option value="ar">🇩🇿 AR</option>
+                <option value="fr">🇫🇷 FR</option>
+              </select>
+            </div>
+
             {user ? (
-              <div className="d-flex align-items-center gap-3">
-                <div className="text-white small">
-                  {t.welcome}, {user.first_name}
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="btn btn-outline-light btn-sm"
+              <div className="nav-item dropdown">
+                <a 
+                  href="#" 
+                  className="nav-link dropdown-toggle d-flex align-items-center" 
+                  id="navbarDropdown" 
+                  role="button" 
+                  data-bs-toggle="dropdown"
                 >
-                  {t.logout}
-                </button>
+                  <div className="user-avatar me-2">
+                    {user.first_name?.charAt(0) || 'U'}
+                  </div>
+                  {user.first_name} {user.last_name}
+                </a>
+                <ul className="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <a 
+                      href="#" 
+                      className="dropdown-item"
+                      onClick={() => {
+                        setCurrentPage('dashboard');
+                        fetchDashboardData();
+                      }}
+                    >
+                      {t.dashboard}
+                    </a>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <a href="#" className="dropdown-item" onClick={handleLogout}>
+                      {t.logout}
+                    </a>
+                  </li>
+                </ul>
               </div>
             ) : (
-              <div className="d-flex gap-2">
-                <button
-                  onClick={() => {
-                    setAuthMode('login');
-                    setShowAuthModal(true);
-                  }}
-                  className="btn btn-outline-light btn-sm"
-                >
-                  {t.login}
-                </button>
-                <button
-                  onClick={() => {
-                    setAuthMode('register');
-                    setShowAuthModal(true);
-                  }}
-                  className="btn btn-light btn-sm"
-                >
-                  {t.register}
-                </button>
-              </div>
+              <>
+                <li className="nav-item me-2">
+                  <button
+                    onClick={() => {
+                      setAuthMode('login');
+                      setShowAuthModal(true);
+                    }}
+                    className="btn btn-outline-primary btn-sm"
+                  >
+                    {t.login}
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    onClick={() => {
+                      setAuthMode('register');
+                      setShowAuthModal(true);
+                    }}
+                    className="btn btn-primary btn-sm"
+                  >
+                    {t.register}
+                  </button>
+                </li>
+              </>
             )}
           </div>
         </div>
@@ -697,67 +756,90 @@ function App() {
 
   // Home Page Component
   const renderHomePage = () => (
-    <div>
+    <div className="home-page">
       {/* Hero Section */}
-      <section className="hero-section">
+      <section className="hero-section" style={{
+        backgroundImage: `linear-gradient(rgba(30, 64, 175, 0.8), rgba(30, 64, 175, 0.6)), url('https://images.pexels.com/photos/8550826/pexels-photo-8550826.jpeg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}>
         <div className="container">
-          <div className="row align-items-center">
+          <div className="row align-items-center min-vh-100 py-5">
             <div className="col-lg-6">
-              <div className="hero-content">
-                <div className="hero-badge">
-                  <span>🇩🇿</span>
-                  <span>Professional Driving Education</span>
+              <div className="hero-content text-white">
+                <div className="hero-badge mb-4">
+                  <span className="badge bg-light text-primary px-3 py-2">
+                    🇩🇿 Trusted by 10,000+ Students Across Algeria
+                  </span>
                 </div>
                 
-                <h1 className="hero-title">
-                  {t.heroTitle}
+                <h1 className="hero-title display-2 fw-bold mb-4">
+                  {t.welcome}
                 </h1>
                 
-                <p className="hero-subtitle">
-                  {t.heroSubtitle}
+                <p className="hero-subtitle fs-4 mb-5 text-light">
+                  {t.subtitle}
                 </p>
                 
-                <div className="d-flex gap-3 mb-5">
+                <div className="hero-buttons d-flex flex-wrap gap-3 mb-5">
                   <button
                     onClick={() => {
-                      setCurrentPage('find-schools');
+                      setCurrentPage('schools');
                       fetchDrivingSchools();
                     }}
-                    className="btn btn-custom-primary"
+                    className="btn btn-primary btn-lg px-4 py-3"
                   >
-                    🔍 {t.heroButton1}
+                    <i className="fas fa-search me-2"></i>
+                    {t.findSchools}
                   </button>
-                  <button
-                    onClick={() => setShowOfflineQuiz(true)}
-                    className="btn btn-custom-black"
-                  >
-                    📚 {t.heroButton2}
+                  <button className="btn btn-outline-light btn-lg px-4 py-3">
+                    <i className="fas fa-play me-2"></i>
+                    {t.learnMore}
                   </button>
                 </div>
-                
-                <div className="hero-stats">
-                  <div className="hero-stat">
-                    <span className="hero-stat-number">{t.stat1}</span>
-                    <span className="hero-stat-label">{t.stat1Label}</span>
+
+                {/* Hero Stats */}
+                <div className="hero-stats row text-center">
+                  <div className="col-4">
+                    <div className="stat-number display-6 fw-bold">58</div>
+                    <div className="stat-label">Wilayas</div>
                   </div>
-                  <div className="hero-stat">
-                    <span className="hero-stat-number">{t.stat2}</span>
-                    <span className="hero-stat-label">{t.stat2Label}</span>
+                  <div className="col-4">
+                    <div className="stat-number display-6 fw-bold">500+</div>
+                    <div className="stat-label">Schools</div>
                   </div>
-                  <div className="hero-stat">
-                    <span className="hero-stat-number">{t.stat3}</span>
-                    <span className="hero-stat-label">{t.stat3Label}</span>
+                  <div className="col-4">
+                    <div className="stat-number display-6 fw-bold">10K+</div>
+                    <div className="stat-label">Students</div>
                   </div>
                 </div>
               </div>
             </div>
             
             <div className="col-lg-6">
-              <div className="text-center">
-                <div className="bg-white bg-opacity-10 rounded-4 p-5 backdrop-blur">
-                  <div className="display-1 mb-3">🎓</div>
-                  <h3 className="h4 mb-3">Premium Training</h3>
-                  <p className="mb-0">Experience world-class driving education</p>
+              <div className="hero-visual d-flex justify-content-center">
+                <div className="hero-cards">
+                  <div className="hero-card bg-white bg-opacity-10 p-4 rounded-4 text-center text-white mb-3">
+                    <div className="hero-card-icon">🚗</div>
+                    <h5>Theory</h5>
+                    <p className="small">Learn traffic rules</p>
+                  </div>
+                  <div className="hero-card bg-white bg-opacity-10 p-4 rounded-4 text-center text-white mb-3">
+                    <div className="hero-card-icon">🅿️</div>
+                    <h5>Parking</h5>
+                    <p className="small">Master parking skills</p>
+                  </div>
+                  <div className="hero-card bg-white bg-opacity-10 p-4 rounded-4 text-center text-white mb-3">
+                    <div className="hero-card-icon">🛣️</div>
+                    <h5>Road Practice</h5>
+                    <p className="small">Real road experience</p>
+                  </div>
+                  <div className="hero-card bg-white bg-opacity-10 p-4 rounded-4 text-center text-white">
+                    <div className="hero-card-icon">📜</div>
+                    <h5>Certificate</h5>
+                    <p className="small">Get licensed</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -766,38 +848,216 @@ function App() {
       </section>
 
       {/* Features Section */}
-      <section className="py-5 bg-white">
+      <section className="features-section py-5 bg-light">
         <div className="container">
-          <div className="text-center mb-5">
-            <div className="badge bg-primary fs-6 mb-3">Excellence in Education</div>
-            <h2 className="display-5 fw-bold text-dark mb-3">{t.whyChoose}</h2>
-            <p className="lead text-muted mx-auto" style={{maxWidth: '600px'}}>
-              Join thousands of successful drivers who chose our platform for their driving education journey.
-            </p>
+          <div className="row">
+            <div className="col-lg-12 text-center mb-5">
+              <div className="section-badge">
+                <span className="badge bg-primary px-3 py-2 mb-3">
+                  ✨ {t.features}
+                </span>
+              </div>
+              <h2 className="display-4 fw-bold mb-4">{t.features}</h2>
+              <p className="lead text-muted">
+                Discover what makes AutoKademia the preferred choice for driving education in Algeria
+              </p>
+            </div>
           </div>
-          
+
           <div className="row g-4">
-            <div className="col-md-4">
-              <div className="feature-card">
-                <div className="feature-icon">🏆</div>
-                <h3 className="feature-title">{t.feature1Title}</h3>
-                <p className="feature-description">{t.feature1Desc}</p>
+            <div className="col-lg-3 col-md-6">
+              <div className="feature-card h-100 bg-white p-4 rounded-4 shadow-sm text-center">
+                <div className="feature-icon mb-4">
+                  <div className="icon-circle bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{width: '80px', height: '80px'}}>
+                    <i className="fas fa-user-graduate fa-2x"></i>
+                  </div>
+                </div>
+                <h4 className="fw-bold mb-3">{t.featureTitle1}</h4>
+                <p className="text-muted">{t.featureDesc1}</p>
               </div>
             </div>
-            
-            <div className="col-md-4">
-              <div className="feature-card">
-                <div className="feature-icon">📋</div>
-                <h3 className="feature-title">{t.feature2Title}</h3>
-                <p className="feature-description">{t.feature2Desc}</p>
+
+            <div className="col-lg-3 col-md-6">
+              <div className="feature-card h-100 bg-white p-4 rounded-4 shadow-sm text-center">
+                <div className="feature-icon mb-4">
+                  <div className="icon-circle bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{width: '80px', height: '80px'}}>
+                    <i className="fas fa-book-open fa-2x"></i>
+                  </div>
+                </div>
+                <h4 className="fw-bold mb-3">{t.featureTitle2}</h4>
+                <p className="text-muted">{t.featureDesc2}</p>
               </div>
             </div>
-            
-            <div className="col-md-4">
-              <div className="feature-card">
-                <div className="feature-icon">🗺️</div>
-                <h3 className="feature-title">{t.feature3Title}</h3>
-                <p className="feature-description">{t.feature3Desc}</p>
+
+            <div className="col-lg-3 col-md-6">
+              <div className="feature-card h-100 bg-white p-4 rounded-4 shadow-sm text-center">
+                <div className="feature-icon mb-4">
+                  <div className="icon-circle bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{width: '80px', height: '80px'}}>
+                    <i className="fas fa-calendar-alt fa-2x"></i>
+                  </div>
+                </div>
+                <h4 className="fw-bold mb-3">{t.featureTitle3}</h4>
+                <p className="text-muted">{t.featureDesc3}</p>
+              </div>
+            </div>
+
+            <div className="col-lg-3 col-md-6">
+              <div className="feature-card h-100 bg-white p-4 rounded-4 shadow-sm text-center">
+                <div className="feature-icon mb-4">
+                  <div className="icon-circle bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{width: '80px', height: '80px'}}>
+                    <i className="fas fa-car fa-2x"></i>
+                  </div>
+                </div>
+                <h4 className="fw-bold mb-3">{t.featureTitle4}</h4>
+                <p className="text-muted">{t.featureDesc4}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Reviews Section */}
+      <section className="reviews-section py-5">
+        <div className="container">
+          <div className="row">
+            <div className="col-lg-12 text-center mb-5">
+              <div className="section-badge">
+                <span className="badge bg-primary px-3 py-2 mb-3">
+                  ⭐ {t.reviews}
+                </span>
+              </div>
+              <h2 className="display-4 fw-bold mb-4">{t.reviews}</h2>
+              <p className="lead text-muted">
+                Hear from thousands of satisfied students across Algeria
+              </p>
+            </div>
+          </div>
+
+          <div className="row g-4">
+            <div className="col-lg-4 col-md-6">
+              <div className="review-card bg-white p-4 rounded-4 shadow-sm">
+                <div className="review-stars mb-3">
+                  <span className="text-warning">★★★★★</span>
+                </div>
+                <p className="review-text mb-4">
+                  "AutoKademia made learning to drive so easy! The instructors were patient and professional. I passed my exam on the first try!"
+                </p>
+                <div className="reviewer d-flex align-items-center">
+                  <div className="reviewer-avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style={{width: '50px', height: '50px'}}>
+                    A
+                  </div>
+                  <div>
+                    <div className="reviewer-name fw-bold">Amina Benali</div>
+                    <div className="reviewer-location text-muted small">Algiers</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-lg-4 col-md-6">
+              <div className="review-card bg-white p-4 rounded-4 shadow-sm">
+                <div className="review-stars mb-3">
+                  <span className="text-warning">★★★★★</span>
+                </div>
+                <p className="review-text mb-4">
+                  "Excellent driving school! The online theory lessons were very helpful, and the practical sessions were well-structured."
+                </p>
+                <div className="reviewer d-flex align-items-center">
+                  <div className="reviewer-avatar bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-3" style={{width: '50px', height: '50px'}}>
+                    Y
+                  </div>
+                  <div>
+                    <div className="reviewer-name fw-bold">Youssef Kadri</div>
+                    <div className="reviewer-location text-muted small">Oran</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-lg-4 col-md-6">
+              <div className="review-card bg-white p-4 rounded-4 shadow-sm">
+                <div className="review-stars mb-3">
+                  <span className="text-warning">★★★★★</span>
+                </div>
+                <p className="review-text mb-4">
+                  "I found the perfect driving school through AutoKademia. The platform is easy to use and the instructors are top-notch!"
+                </p>
+                <div className="reviewer d-flex align-items-center">
+                  <div className="reviewer-avatar bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style={{width: '50px', height: '50px'}}>
+                    S
+                  </div>
+                  <div>
+                    <div className="reviewer-name fw-bold">Sara Meziane</div>
+                    <div className="reviewer-location text-muted small">Constantine</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section className="contact-section py-5 bg-primary text-white">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col-lg-6">
+              <h2 className="display-5 fw-bold mb-4">{t.contactUs}</h2>
+              <p className="lead mb-4">{t.contactDesc}</p>
+              
+              <div className="contact-info">
+                <div className="contact-item d-flex align-items-center mb-3">
+                  <div className="contact-icon me-4">
+                    <i className="fas fa-envelope fa-2x"></i>
+                  </div>
+                  <div>
+                    <div className="contact-label fw-bold">Email</div>
+                    <div className="contact-value">{t.contactEmail}</div>
+                  </div>
+                </div>
+
+                <div className="contact-item d-flex align-items-center mb-3">
+                  <div className="contact-icon me-4">
+                    <i className="fas fa-phone fa-2x"></i>
+                  </div>
+                  <div>
+                    <div className="contact-label fw-bold">Phone</div>
+                    <div className="contact-value">{t.contactPhone}</div>
+                  </div>
+                </div>
+
+                <div className="contact-item d-flex align-items-center mb-3">
+                  <div className="contact-icon me-4">
+                    <i className="fas fa-map-marker-alt fa-2x"></i>
+                  </div>
+                  <div>
+                    <div className="contact-label fw-bold">Address</div>
+                    <div className="contact-value">{t.contactAddress}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-lg-6">
+              <div className="contact-form bg-white text-dark p-5 rounded-4">
+                <h4 className="fw-bold mb-4">Send us a message</h4>
+                <form>
+                  <div className="mb-3">
+                    <label className="form-label">Name</label>
+                    <input type="text" className="form-control" placeholder="Your full name" />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Email</label>
+                    <input type="email" className="form-control" placeholder="your@email.com" />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Message</label>
+                    <textarea className="form-control" rows="4" placeholder="How can we help you?"></textarea>
+                  </div>
+                  <button type="submit" className="btn btn-primary w-100">
+                    Send Message
+                  </button>
+                </form>
               </div>
             </div>
           </div>
@@ -808,233 +1068,209 @@ function App() {
 
   // Schools Page Component
   const renderSchoolsPage = () => (
-    <div className="pt-5 mt-5">
+    <div className="schools-page pt-5 mt-5">
       <div className="container">
-        <div className="text-center mb-5">
-          <div className="badge bg-primary fs-6 mb-3">Premium Driving Schools</div>
-          <h2 className="display-5 fw-bold text-dark mb-3">Choose Your Driving School</h2>
-          <p className="lead text-muted mx-auto" style={{maxWidth: '600px'}}>
-            Explore certified driving schools across Algeria with guaranteed quality and professional instruction.
+        <div className="page-header text-center mb-5">
+          <h1 className="display-4 fw-bold mb-3">Find Your Perfect Driving School</h1>
+          <p className="lead text-muted">
+            Discover certified driving schools across all 58 Algerian wilayas
           </p>
         </div>
 
-        {/* Search and Filter Section */}
-        <div className="search-container mb-5">
-          
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="mb-4">
-            <div className="position-relative mx-auto" style={{maxWidth: '600px'}}>
-              <input
-                type="text"
-                placeholder="Search schools by name, address, or description..."
-                value={searchQuery}
-                onChange={(e) => handleSearchInputChange(e.target.value)}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                className="form-control form-control-lg pe-5"
-              />
-              <button
-                type="submit"
-                className="btn btn-primary position-absolute top-50 end-0 translate-middle-y me-2"
-                style={{zIndex: 5}}
-              >
-                🔍
-              </button>
-              
-              {/* Search Suggestions */}
-              {showSuggestions && searchSuggestions.length > 0 && (
-                <div className="search-suggestions">
-                  {searchSuggestions.map((suggestion, index) => (
-                    <div
-                      key={index}
-                      onClick={() => {
-                        setSearchQuery(suggestion);
-                        setShowSuggestions(false);
-                        fetchDrivingSchools({ search: suggestion, page: 1 });
-                      }}
-                      className="search-suggestion-item"
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
+        {/* Search and Filters */}
+        <div className="search-filters-section mb-5">
+          <div className="card shadow-sm">
+            <div className="card-body p-4">
+              {/* Search Bar */}
+              <div className="search-bar mb-4">
+                <div className="input-group input-group-lg">
+                  <span className="input-group-text">
+                    <i className="fas fa-search"></i>
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder={t.searchPlaceholder}
+                    value={filters.search}
+                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                  />
                 </div>
-              )}
-            </div>
-          </form>
-
-          {/* Advanced Filters */}
-          <div className="row g-3 mb-3">
-            
-            {/* State Filter */}
-            <div className="col-md-6 col-lg-3">
-              <label className="form-label fw-medium">Wilaya</label>
-              <select
-                value={selectedState}
-                onChange={(e) => {
-                  setSelectedState(e.target.value);
-                  fetchDrivingSchools({ state: e.target.value, page: 1 });
-                }}
-                className="form-select"
-              >
-                <option value="">All Wilayas</option>
-                {states.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Price Range */}
-            <div className="col-md-6 col-lg-3">
-              <label className="form-label fw-medium">Min Price (DZD)</label>
-              <input
-                type="number"
-                placeholder="Min price"
-                value={priceRange.min}
-                onChange={(e) => {
-                  setPriceRange(prev => ({ ...prev, min: e.target.value }));
-                }}
-                onBlur={() => fetchDrivingSchools({ page: 1 })}
-                className="form-control"
-              />
-            </div>
-
-            <div className="col-md-6 col-lg-3">
-              <label className="form-label fw-medium">Max Price (DZD)</label>
-              <input
-                type="number"
-                placeholder="Max price"
-                value={priceRange.max}
-                onChange={(e) => {
-                  setPriceRange(prev => ({ ...prev, max: e.target.value }));
-                }}
-                onBlur={() => fetchDrivingSchools({ page: 1 })}
-                className="form-control"
-              />
-            </div>
-
-            {/* Rating Filter */}
-            <div className="col-md-6 col-lg-3">
-              <label className="form-label fw-medium">Min Rating</label>
-              <select
-                value={minRating}
-                onChange={(e) => {
-                  setMinRating(e.target.value);
-                  fetchDrivingSchools({ min_rating: e.target.value, page: 1 });
-                }}
-                className="form-select"
-              >
-                <option value="">Any Rating</option>
-                <option value="4">4+ Stars</option>
-                <option value="3">3+ Stars</option>
-                <option value="2">2+ Stars</option>
-                <option value="1">1+ Stars</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Sort Options */}
-          <div className="row g-3">
-            <div className="col-md-6">
-              <label className="form-label fw-medium">Sort By</label>
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  fetchDrivingSchools({ sort_by: e.target.value, page: 1 });
-                }}
-                className="form-select"
-              >
-                <option value="name">Name</option>
-                <option value="price">Price</option>
-                <option value="rating">Rating</option>
-                <option value="newest">Newest</option>
-              </select>
-            </div>
-
-            <div className="col-md-6">
-              <label className="form-label fw-medium">Order</label>
-              <select
-                value={sortOrder}
-                onChange={(e) => {
-                  setSortOrder(e.target.value);
-                  fetchDrivingSchools({ sort_order: e.target.value, page: 1 });
-                }}
-                className="form-select"
-              >
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Filter Actions */}
-          <div className="d-flex justify-content-between align-items-center mt-4">
-            <button
-              onClick={clearFilters}
-              className="btn btn-outline-secondary"
-            >
-              Clear All Filters
-            </button>
-            
-            {pagination.total_count > 0 && (
-              <div className="text-muted">
-                Showing {pagination.total_count} school(s)
               </div>
-            )}
+
+              {/* Filters */}
+              <div className="filters-grid">
+                <div className="row g-3">
+                  <div className="col-lg-3 col-md-6">
+                    <label className="form-label fw-bold">{t.filterByState}</label>
+                    <select
+                      className="form-select"
+                      value={filters.state}
+                      onChange={(e) => handleFilterChange('state', e.target.value)}
+                    >
+                      <option value="">{t.allStates}</option>
+                      {states.map((state) => (
+                        <option key={state} value={state}>
+                          {state}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-lg-2 col-md-6">
+                    <label className="form-label fw-bold">{t.minPrice}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="0"
+                      value={filters.min_price}
+                      onChange={(e) => handleFilterChange('min_price', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-lg-2 col-md-6">
+                    <label className="form-label fw-bold">{t.maxPrice}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="∞"
+                      value={filters.max_price}
+                      onChange={(e) => handleFilterChange('max_price', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-lg-2 col-md-6">
+                    <label className="form-label fw-bold">{t.minRating}</label>
+                    <select
+                      className="form-select"
+                      value={filters.min_rating}
+                      onChange={(e) => handleFilterChange('min_rating', e.target.value)}
+                    >
+                      <option value="">Any</option>
+                      <option value="1">1+ ⭐</option>
+                      <option value="2">2+ ⭐</option>
+                      <option value="3">3+ ⭐</option>
+                      <option value="4">4+ ⭐</option>
+                      <option value="5">5 ⭐</option>
+                    </select>
+                  </div>
+
+                  <div className="col-lg-3 col-md-6">
+                    <label className="form-label fw-bold">{t.sortBy}</label>
+                    <select
+                      className="form-select"
+                      value={`${filters.sort_by}_${filters.sort_order}`}
+                      onChange={(e) => {
+                        const [sortBy, sortOrder] = e.target.value.split('_');
+                        handleFilterChange('sort_by', sortBy);
+                        handleFilterChange('sort_order', sortOrder);
+                      }}
+                    >
+                      <option value="name_asc">Name A-Z</option>
+                      <option value="name_desc">Name Z-A</option>
+                      <option value="price_asc">Price Low-High</option>
+                      <option value="price_desc">Price High-Low</option>
+                      <option value="rating_desc">Rating High-Low</option>
+                      <option value="newest_desc">Newest First</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="row mt-3">
+                  <div className="col-12 d-flex justify-content-end">
+                    <button onClick={clearFilters} className="btn btn-outline-secondary">
+                      <i className="fas fa-times me-2"></i>
+                      Clear Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {loading ? (
-          <div className="loading-container">
-            <div className="spinner-custom"></div>
+        {/* Loading State */}
+        {loading && (
+          <div className="loading-section text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3 text-muted">Finding the best driving schools for you...</p>
           </div>
-        ) : (
+        )}
+
+        {/* Schools Grid */}
+        {!loading && (
           <>
-            <div className="row g-4">
-              {drivingSchools.map((school) => (
-                <div key={school.id} className="col-lg-6">
-                  <div className="school-card">
-                    <div className="school-header">
-                      <div>
-                        <h3 className="school-title">{school.name}</h3>
-                        <div className="school-location">
-                          📍 {school.address}, {school.state}
+            <div className="schools-grid">
+              <div className="row g-4">
+                {drivingSchools.map((school) => (
+                  <div key={school.id} className="col-lg-6 col-xl-4">
+                    <div className="school-card h-100 card shadow-sm">
+                      {school.photos && school.photos.length > 0 && (
+                        <img 
+                          src={school.photos[0]} 
+                          className="card-img-top" 
+                          alt={school.name}
+                          style={{ height: '200px', objectFit: 'cover' }}
+                        />
+                      )}
+                      
+                      <div className="card-body d-flex flex-column">
+                        <div className="school-header mb-3">
+                          <div className="d-flex justify-content-between align-items-start">
+                            <div className="flex-grow-1">
+                              <h5 className="school-name fw-bold mb-2">{school.name}</h5>
+                              <p className="school-location text-muted small mb-0">
+                                <i className="fas fa-map-marker-alt me-1"></i>
+                                {school.address}, {school.state}
+                              </p>
+                            </div>
+                            <div className="school-price">
+                              <span className="badge bg-primary fs-6">
+                                {school.price.toLocaleString()} DA
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="school-rating mb-3">
+                          <div className="d-flex align-items-center gap-2">
+                            <div className="stars">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <span 
+                                  key={star} 
+                                  className={`star ${star <= Math.floor(school.rating) ? 'text-warning' : 'text-muted'}`}
+                                >
+                                  {star <= Math.floor(school.rating) ? '★' : '☆'}
+                                </span>
+                              ))}
+                            </div>
+                            <span className="school-reviews">({school.total_reviews} reviews)</span>
+                          </div>
+                        </div>
+                      
+                        <p className="school-description flex-grow-1">
+                          {school.description}
+                        </p>
+                      
+                        <div className="school-actions mt-auto">
+                          <div className="d-flex gap-2">
+                            <button
+                              onClick={() => handleEnroll(school.id)}
+                              className="btn btn-primary flex-grow-1"
+                            >
+                              {t.enrollNow}
+                            </button>
+                            <button className="btn btn-outline-secondary">
+                              {t.viewDetails}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="school-price">{school.price} DZD</div>
-                    </div>
-                  
-                    <div className="school-rating">
-                      <div className="stars">
-                        {[...Array(5)].map((_, i) => (
-                          <span key={i} className="star">
-                            {i < Math.floor(school.rating) ? '★' : '☆'}
-                          </span>
-                        ))}
-                      </div>
-                      <span className="school-reviews">({school.total_reviews} reviews)</span>
-                    </div>
-                  
-                    <p className="school-description">
-                      {school.description}
-                    </p>
-                  
-                    <div className="d-flex gap-2">
-                      <button
-                        onClick={() => handleEnroll(school.id)}
-                        className="btn btn-custom-primary flex-grow-1"
-                      >
-                        {t.enrollNow}
-                      </button>
-                      <button className="btn btn-outline-secondary">
-                        {t.viewDetails}
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             {/* Pagination */}
@@ -1081,12 +1317,15 @@ function App() {
         )}
 
         {drivingSchools.length === 0 && !loading && (
-          <div className="text-center py-5">
-            <div style={{fontSize: '4rem'}} className="mb-4">🏫</div>
-            <h3>No driving schools found matching your criteria.</h3>
+          <div className="no-results text-center py-5">
+            <div className="no-results-icon mb-4">
+              <i className="fas fa-school fa-4x text-muted"></i>
+            </div>
+            <h3 className="fw-bold mb-3">No driving schools found</h3>
+            <p className="text-muted mb-4">Try adjusting your search criteria or filters</p>
             <button
               onClick={clearFilters}
-              className="btn btn-primary mt-3"
+              className="btn btn-primary"
             >
               Clear filters to see all schools
             </button>
@@ -1098,75 +1337,163 @@ function App() {
 
   // Dashboard Component
   const renderDashboard = () => (
-    <div className="dashboard-container">
+    <div className="dashboard-page pt-5 mt-5">
       <div className="container">
-        <div className="dashboard-header">
-          <h1 className="dashboard-welcome">
-            Welcome back, {user?.first_name}!
-          </h1>
-          <p className="dashboard-subtitle">
-            Your role: <span className="fw-bold text-capitalize">{user?.role}</span>
-          </p>
+        <div className="dashboard-header mb-5">
+          <div className="row align-items-center">
+            <div className="col-lg-8">
+              <h1 className="display-5 fw-bold mb-2">
+                Welcome back, {user?.first_name}!
+              </h1>
+              <p className="lead text-muted">
+                Your role: <span className="fw-bold text-capitalize text-primary">{user?.role}</span>
+              </p>
+            </div>
+            <div className="col-lg-4 text-lg-end">
+              <div className="dashboard-stats">
+                <div className="stat-item">
+                  <div className="stat-number display-6 fw-bold text-primary">
+                    {dashboardData?.enrollments?.length || 0}
+                  </div>
+                  <div className="stat-label text-muted">Active Enrollments</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         
         {dashboardData ? (
-          <div className="row g-4">
-            <div className="col-lg-8">
-              <div className="dashboard-card">
-                <h3 className="dashboard-card-title">Your Enrollments</h3>
-                {dashboardData.enrollments && dashboardData.enrollments.length > 0 ? (
-                  <div className="d-flex flex-column gap-3">
-                    {dashboardData.enrollments.map((enrollment) => (
-                      <div key={enrollment.id} className="p-3 border rounded">
-                        <h4 className="fw-bold mb-2">
-                          {enrollment.school_name}
-                        </h4>
-                        <div className="d-flex align-items-center gap-3">
-                          <span>Status:</span>
-                          <span className={`status-badge status-${enrollment.enrollment_status.replace('_', '-')}`}>
-                            {enrollment.enrollment_status.replace('_', ' ')}
-                          </span>
-                        </div>
-                        {enrollment.enrollment_status === 'pending_documents' && (
-                          <p className="text-primary small mt-2">
-                            ℹ️ Please upload required documents for approval
-                          </p>
-                        )}
-                      </div>
-                    ))}
+          <div className="dashboard-content">
+            <div className="row g-4">
+              <div className="col-lg-8">
+                <div className="card shadow-sm">
+                  <div className="card-header bg-white">
+                    <h3 className="card-title fw-bold mb-0">Your Enrollments</h3>
                   </div>
-                ) : (
-                  <p>No enrollments yet. Find a school to get started!</p>
-                )}
+                  <div className="card-body">
+                    {dashboardData.enrollments && dashboardData.enrollments.length > 0 ? (
+                      <div className="enrollments-list">
+                        {dashboardData.enrollments.map((enrollment) => (
+                          <div key={enrollment.id} className="enrollment-card p-4 border rounded-3 mb-3">
+                            <div className="d-flex justify-content-between align-items-start mb-3">
+                              <div>
+                                <h4 className="fw-bold mb-2">
+                                  {enrollment.school_name}
+                                </h4>
+                                <p className="text-muted mb-0">
+                                  <i className="fas fa-calendar-alt me-2"></i>
+                                  Enrolled: {new Date(enrollment.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <span className={`badge fs-6 px-3 py-2 status-${enrollment.enrollment_status.replace('_', '-')}`}>
+                                {enrollment.enrollment_status.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                            
+                            {enrollment.enrollment_status === 'pending_documents' && (
+                              <div className="alert alert-info">
+                                <i className="fas fa-info-circle me-2"></i>
+                                Please upload required documents for approval
+                              </div>
+                            )}
+                            
+                            {enrollment.enrollment_status === 'approved' && (
+                              <div className="alert alert-success">
+                                <i className="fas fa-check-circle me-2"></i>
+                                Enrollment approved! You can start your courses.
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-5">
+                        <i className="fas fa-graduation-cap fa-4x text-muted mb-4"></i>
+                        <h5 className="fw-bold mb-3">No enrollments yet</h5>
+                        <p className="text-muted mb-4">Find a driving school to get started with your journey!</p>
+                        <button
+                          onClick={() => {
+                            setCurrentPage('schools');
+                            fetchDrivingSchools();
+                          }}
+                          className="btn btn-primary"
+                        >
+                          <i className="fas fa-search me-2"></i>
+                          Find Schools
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="col-lg-4">
-              <div className="dashboard-card">
-                <h3 className="dashboard-card-title">Quick Actions</h3>
-                <div className="d-flex flex-column gap-3">
-                  <button
-                    onClick={() => {
-                      setCurrentPage('find-schools');
-                      fetchDrivingSchools();
-                    }}
-                    className="btn btn-custom-primary"
-                  >
-                    🔍 Find Driving Schools
-                  </button>
-                  <button
-                    onClick={() => setShowOfflineQuiz(true)}
-                    className="btn btn-custom-black"
-                  >
-                    📚 Practice Tests
-                  </button>
+              
+              <div className="col-lg-4">
+                <div className="card shadow-sm">
+                  <div className="card-header bg-white">
+                    <h3 className="card-title fw-bold mb-0">Quick Actions</h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="quick-actions d-grid gap-3">
+                      <button
+                        onClick={() => {
+                          setCurrentPage('schools');
+                          fetchDrivingSchools();
+                        }}
+                        className="btn btn-primary btn-lg"
+                      >
+                        <i className="fas fa-search me-2"></i>
+                        Find Driving Schools
+                      </button>
+                      
+                      <button
+                        onClick={() => setCurrentPage('home')}
+                        className="btn btn-outline-secondary btn-lg"
+                      >
+                        <i className="fas fa-home me-2"></i>
+                        Back to Home
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Profile Card */}
+                <div className="card shadow-sm mt-4">
+                  <div className="card-header bg-white">
+                    <h3 className="card-title fw-bold mb-0">Profile</h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="profile-info">
+                      <div className="text-center mb-4">
+                        <div className="profile-avatar bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style={{width: '80px', height: '80px', fontSize: '2rem'}}>
+                          {user?.first_name?.charAt(0) || 'U'}
+                        </div>
+                      </div>
+                      <div className="profile-details">
+                        <div className="detail-item mb-3">
+                          <label className="form-label fw-bold">Name</label>
+                          <p className="mb-0">{user?.first_name} {user?.last_name}</p>
+                        </div>
+                        <div className="detail-item mb-3">
+                          <label className="form-label fw-bold">Email</label>
+                          <p className="mb-0">{user?.email}</p>
+                        </div>
+                        <div className="detail-item mb-3">
+                          <label className="form-label fw-bold">Role</label>
+                          <p className="mb-0 text-capitalize">{user?.role}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="loading-container">
-            <div className="spinner-custom"></div>
+          <div className="loading-section text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3 text-muted">Loading your dashboard...</p>
           </div>
         )}
       </div>
@@ -1196,13 +1523,13 @@ function App() {
             
             <div className="modal-body">
               {errorMessage && (
-                <div className="alert-custom-error">
+                <div className="alert alert-danger">
                   {errorMessage}
                 </div>
               )}
 
               {successMessage && (
-                <div className="alert-custom-success">
+                <div className="alert alert-success">
                   {successMessage}
                 </div>
               )}
@@ -1364,7 +1691,7 @@ function App() {
       {/* Global Messages */}
       {globalError && (
         <div className="position-fixed top-0 end-0 m-3" style={{zIndex: 9999}}>
-          <div className="alert-custom-error" style={{maxWidth: '400px'}}>
+          <div className="alert alert-danger" style={{maxWidth: '400px'}}>
             {globalError}
             <button
               onClick={() => setGlobalError('')}
@@ -1376,7 +1703,7 @@ function App() {
 
       {successMessage && (
         <div className="position-fixed top-0 end-0 m-3" style={{zIndex: 9999}}>
-          <div className="alert-custom-success" style={{maxWidth: '400px'}}>
+          <div className="alert alert-success" style={{maxWidth: '400px'}}>
             {successMessage}
             <button
               onClick={() => setSuccessMessage('')}
@@ -1392,7 +1719,7 @@ function App() {
       {/* Main Content */}
       <main>
         {currentPage === 'home' && renderHomePage()}
-        {currentPage === 'find-schools' && renderSchoolsPage()}
+        {currentPage === 'schools' && renderSchoolsPage()}
         {currentPage === 'dashboard' && renderDashboard()}
       </main>
 
