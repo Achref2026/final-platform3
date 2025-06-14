@@ -1861,6 +1861,447 @@ async def take_quiz(
             raise e
         raise HTTPException(status_code=500, detail="Failed to take quiz")
 
+# VIDEO ROOM ENDPOINTS
+
+@api_router.post("/video-rooms")
+async def create_video_room(
+    room_data: VideoRoomCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "teacher":
+            raise HTTPException(status_code=403, detail="Only teachers can create video rooms")
+        
+        # Verify course exists and teacher access
+        course = await db.courses.find_one({"id": room_data.course_id})
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        # Create video room
+        room_id = str(uuid.uuid4())
+        room_name = f"course-{course['id']}-{int(datetime.utcnow().timestamp())}"
+        
+        room_doc = {
+            "id": room_id,
+            "course_id": room_data.course_id,
+            "teacher_id": current_user["id"],
+            "student_id": room_data.student_id,
+            "room_url": f"https://daily.co/{room_name}",
+            "room_name": room_name,
+            "scheduled_at": datetime.fromisoformat(room_data.scheduled_at),
+            "duration_minutes": room_data.duration_minutes,
+            "is_active": True,
+            "daily_room_id": room_name,
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.video_rooms.insert_one(room_doc)
+        
+        return {
+            "room_id": room_id,
+            "room_url": room_doc["room_url"],
+            "message": "Video room created successfully"
+        }
+    
+    except Exception as e:
+        logger.error(f"Create video room error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to create video room")
+
+@api_router.get("/video-rooms/my")
+async def get_my_video_rooms(current_user = Depends(get_current_user)):
+    try:
+        query = {}
+        if current_user["role"] == "teacher":
+            query["teacher_id"] = current_user["id"]
+        elif current_user["role"] == "student":
+            query["student_id"] = current_user["id"]
+        else:
+            raise HTTPException(status_code=403, detail="Only teachers and students can view video rooms")
+        
+        rooms_cursor = db.video_rooms.find(query)
+        rooms = await rooms_cursor.to_list(length=None)
+        
+        return serialize_doc(rooms)
+    
+    except Exception as e:
+        logger.error(f"Get video rooms error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve video rooms")
+
+# EXTERNAL EXPERT ENDPOINTS
+
+@api_router.post("/external-experts/register")
+async def register_external_expert(
+    expert_data: ExternalExpertCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "guest":
+            raise HTTPException(status_code=403, detail="Only guests can register as external experts")
+        
+        # Create external expert record
+        expert_id = str(uuid.uuid4())
+        expert_doc = {
+            "id": expert_id,
+            "user_id": current_user["id"],
+            "specialization": expert_data.specialization,
+            "available_states": expert_data.available_states,
+            "certification_number": expert_data.certification_number,
+            "years_of_experience": expert_data.years_of_experience,
+            "rating": 0.0,
+            "total_exams_conducted": 0,
+            "is_available": True,
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.external_experts.insert_one(expert_doc)
+        
+        # Update user role
+        await db.users.update_one(
+            {"id": current_user["id"]},
+            {"$set": {"role": "external_expert"}}
+        )
+        
+        return {"expert_id": expert_id, "message": "External expert registered successfully"}
+    
+    except Exception as e:
+        logger.error(f"Register external expert error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to register external expert")
+
+@api_router.get("/external-experts")
+async def get_external_experts(
+    specialization: str = None,
+    state: str = None
+):
+    try:
+        query = {"is_available": True}
+        
+        if specialization:
+            query["specialization"] = {"$in": [specialization]}
+        if state:
+            query["available_states"] = {"$in": [state]}
+        
+        experts_cursor = db.external_experts.find(query)
+        experts = await experts_cursor.to_list(length=None)
+        
+        return serialize_doc(experts)
+    
+    except Exception as e:
+        logger.error(f"Get external experts error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve external experts")
+
+# SESSION MANAGEMENT ENDPOINTS
+
+@api_router.post("/sessions/schedule")
+async def schedule_session(
+    session_data: SessionCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can schedule sessions")
+        
+        # Verify course exists and student access
+        course = await db.courses.find_one({"id": session_data.course_id})
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        # Verify teacher exists
+        teacher = await db.teachers.find_one({"id": session_data.teacher_id, "is_approved": True})
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found or not approved")
+        
+        # Create session
+        session_id = str(uuid.uuid4())
+        session_doc = {
+            "id": session_id,
+            "course_id": session_data.course_id,
+            "teacher_id": session_data.teacher_id,
+            "student_id": current_user["id"],
+            "session_type": course["course_type"],
+            "scheduled_at": datetime.fromisoformat(session_data.scheduled_at),
+            "duration_minutes": session_data.duration_minutes,
+            "location": session_data.location,
+            "status": SessionStatus.SCHEDULED,
+            "notes": None,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        await db.sessions.insert_one(session_doc)
+        
+        return {"session_id": session_id, "message": "Session scheduled successfully"}
+    
+    except Exception as e:
+        logger.error(f"Schedule session error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to schedule session")
+
+@api_router.get("/sessions/my")
+async def get_my_sessions(current_user = Depends(get_current_user)):
+    try:
+        query = {}
+        if current_user["role"] == "student":
+            query["student_id"] = current_user["id"]
+        elif current_user["role"] == "teacher":
+            query["teacher_id"] = current_user["id"]
+        else:
+            raise HTTPException(status_code=403, detail="Only students and teachers can view sessions")
+        
+        sessions_cursor = db.sessions.find(query)
+        sessions = await sessions_cursor.to_list(length=None)
+        
+        return serialize_doc(sessions)
+    
+    except Exception as e:
+        logger.error(f"Get sessions error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve sessions")
+
+@api_router.post("/sessions/{session_id}/complete")
+async def complete_session(
+    session_id: str,
+    notes: str = Form(""),
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] not in ["teacher", "manager"]:
+            raise HTTPException(status_code=403, detail="Only teachers and managers can complete sessions")
+        
+        # Get session
+        session = await db.sessions.find_one({"id": session_id})
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Update session
+        await db.sessions.update_one(
+            {"id": session_id},
+            {
+                "$set": {
+                    "status": SessionStatus.COMPLETED,
+                    "notes": notes,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Update course progress
+        course = await db.courses.find_one({"id": session["course_id"]})
+        if course:
+            new_completed = course["completed_sessions"] + 1
+            await db.courses.update_one(
+                {"id": session["course_id"]},
+                {
+                    "$set": {
+                        "completed_sessions": new_completed,
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Check if course is completed
+            if new_completed >= course["total_sessions"]:
+                await db.courses.update_one(
+                    {"id": session["course_id"]},
+                    {
+                        "$set": {
+                            "status": CourseStatus.COMPLETED,
+                            "exam_status": ExamStatus.AVAILABLE,
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+        
+        return {"message": "Session completed successfully"}
+    
+    except Exception as e:
+        logger.error(f"Complete session error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to complete session")
+
+# EXAM MANAGEMENT ENDPOINTS
+
+@api_router.post("/exams/schedule")
+async def schedule_exam(
+    exam_data: ExamScheduleCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can schedule exams")
+        
+        # Verify course exists and is ready for exam
+        course = await db.courses.find_one({"id": exam_data.course_id})
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        
+        if course["exam_status"] != ExamStatus.AVAILABLE:
+            raise HTTPException(status_code=400, detail="Course is not ready for exam")
+        
+        # Find available external expert
+        experts_cursor = db.external_experts.find({
+            "specialization": {"$in": [exam_data.exam_type]},
+            "is_available": True
+        })
+        experts = await experts_cursor.to_list(length=None)
+        
+        if not experts:
+            raise HTTPException(status_code=404, detail="No available external experts for this exam type")
+        
+        # Select first available expert (in real app, would have better logic)
+        expert = experts[0]
+        
+        # Create exam
+        exam_id = str(uuid.uuid4())
+        exam_doc = {
+            "id": exam_id,
+            "course_id": exam_data.course_id,
+            "student_id": current_user["id"],
+            "external_expert_id": expert["id"],
+            "exam_type": exam_data.exam_type,
+            "scheduled_at": datetime.fromisoformat(exam_data.preferred_dates[0]),  # Use first preferred date
+            "location": exam_data.location,
+            "duration_minutes": 90,
+            "status": ExamStatus.AVAILABLE,
+            "score": None,
+            "notes": None,
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.exam_schedules.insert_one(exam_doc)
+        
+        return {"exam_id": exam_id, "message": "Exam scheduled successfully"}
+    
+    except Exception as e:
+        logger.error(f"Schedule exam error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to schedule exam")
+
+@api_router.get("/exams/my")
+async def get_my_exams(current_user = Depends(get_current_user)):
+    try:
+        query = {}
+        if current_user["role"] == "student":
+            query["student_id"] = current_user["id"]
+        elif current_user["role"] == "external_expert":
+            expert = await db.external_experts.find_one({"user_id": current_user["id"]})
+            if expert:
+                query["external_expert_id"] = expert["id"]
+        else:
+            raise HTTPException(status_code=403, detail="Only students and external experts can view exams")
+        
+        exams_cursor = db.exam_schedules.find(query)
+        exams = await exams_cursor.to_list(length=None)
+        
+        return serialize_doc(exams)
+    
+    except Exception as e:
+        logger.error(f"Get exams error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve exams")
+
+@api_router.post("/exams/{exam_id}/confirm")
+async def confirm_exam(
+    exam_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "external_expert":
+            raise HTTPException(status_code=403, detail="Only external experts can confirm exams")
+        
+        # Get exam
+        exam = await db.exam_schedules.find_one({"id": exam_id})
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        
+        # Verify expert ownership
+        expert = await db.external_experts.find_one({"user_id": current_user["id"]})
+        if not expert or exam["external_expert_id"] != expert["id"]:
+            raise HTTPException(status_code=403, detail="Unauthorized to confirm this exam")
+        
+        # Confirm exam (no status change needed, just acknowledgment)
+        return {"message": "Exam confirmed successfully"}
+    
+    except Exception as e:
+        logger.error(f"Confirm exam error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to confirm exam")
+
+@api_router.post("/exams/{exam_id}/complete")
+async def complete_exam(
+    exam_id: str,
+    score: float = Form(...),
+    notes: str = Form(""),
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "external_expert":
+            raise HTTPException(status_code=403, detail="Only external experts can complete exams")
+        
+        # Get exam
+        exam = await db.exam_schedules.find_one({"id": exam_id})
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        
+        # Verify expert ownership
+        expert = await db.external_experts.find_one({"user_id": current_user["id"]})
+        if not expert or exam["external_expert_id"] != expert["id"]:
+            raise HTTPException(status_code=403, detail="Unauthorized to complete this exam")
+        
+        # Determine pass/fail
+        passing_score = 70.0
+        passed = score >= passing_score
+        
+        # Update exam
+        await db.exam_schedules.update_one(
+            {"id": exam_id},
+            {
+                "$set": {
+                    "status": ExamStatus.PASSED if passed else ExamStatus.FAILED,
+                    "score": score,
+                    "notes": notes
+                }
+            }
+        )
+        
+        # Update course exam status
+        await db.courses.update_one(
+            {"id": exam["course_id"]},
+            {
+                "$set": {
+                    "exam_status": ExamStatus.PASSED if passed else ExamStatus.FAILED,
+                    "exam_score": score,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Update course availability for next course
+        course = await db.courses.find_one({"id": exam["course_id"]})
+        if course and passed:
+            await update_course_availability(course["enrollment_id"])
+        
+        return {"message": "Exam completed successfully", "passed": passed}
+    
+    except Exception as e:
+        logger.error(f"Complete exam error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to complete exam")
+
 # Include the API router
 app.include_router(api_router)
 
