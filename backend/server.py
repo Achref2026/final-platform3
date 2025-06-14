@@ -1499,6 +1499,368 @@ async def reject_enrollment(
             raise e
         raise HTTPException(status_code=500, detail="Failed to reject enrollment")
 
+# DRIVING SCHOOL MANAGEMENT ENDPOINTS
+
+@api_router.post("/driving-schools")
+async def create_driving_school(
+    school_data: DrivingSchoolCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "guest":
+            raise HTTPException(status_code=403, detail="Only guests can create driving schools")
+        
+        # Update user role to manager
+        await db.users.update_one(
+            {"id": current_user["id"]},
+            {"$set": {"role": "manager"}}
+        )
+        
+        # Create driving school
+        school_id = str(uuid.uuid4())
+        school_doc = {
+            "id": school_id,
+            "name": school_data.name,
+            "address": school_data.address,
+            "state": school_data.state,
+            "phone": school_data.phone,
+            "email": school_data.email,
+            "description": school_data.description,
+            "logo_url": None,
+            "photos": [],
+            "price": school_data.price,
+            "rating": 0.0,
+            "total_reviews": 0,
+            "manager_id": current_user["id"],
+            "latitude": school_data.latitude,
+            "longitude": school_data.longitude,
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.driving_schools.insert_one(school_doc)
+        
+        return {"id": school_id, "message": "Driving school created successfully"}
+    
+    except Exception as e:
+        logger.error(f"Create driving school error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to create driving school")
+
+@api_router.get("/driving-schools/{school_id}")
+async def get_driving_school(school_id: str):
+    try:
+        school = await db.driving_schools.find_one({"id": school_id})
+        if not school:
+            raise HTTPException(status_code=404, detail="Driving school not found")
+        
+        return serialize_doc(school)
+    
+    except Exception as e:
+        logger.error(f"Get driving school error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve driving school")
+
+@api_router.put("/driving-schools/{school_id}")
+async def update_driving_school(
+    school_id: str,
+    school_data: DrivingSchoolCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can update driving schools")
+        
+        # Verify ownership
+        school = await db.driving_schools.find_one({
+            "id": school_id,
+            "manager_id": current_user["id"]
+        })
+        if not school:
+            raise HTTPException(status_code=404, detail="Driving school not found or unauthorized")
+        
+        # Update school
+        update_data = {
+            "name": school_data.name,
+            "address": school_data.address,
+            "state": school_data.state,
+            "phone": school_data.phone,
+            "email": school_data.email,
+            "description": school_data.description,
+            "price": school_data.price,
+            "latitude": school_data.latitude,
+            "longitude": school_data.longitude
+        }
+        
+        await db.driving_schools.update_one(
+            {"id": school_id},
+            {"$set": update_data}
+        )
+        
+        return {"message": "Driving school updated successfully"}
+    
+    except Exception as e:
+        logger.error(f"Update driving school error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to update driving school")
+
+# TEACHER MANAGEMENT ENDPOINTS
+
+@api_router.post("/teachers/add")
+async def add_teacher(
+    teacher_data: TeacherCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can add teachers")
+        
+        # Get manager's school
+        school = await db.driving_schools.find_one({"manager_id": current_user["id"]})
+        if not school:
+            raise HTTPException(status_code=404, detail="Manager has no driving school")
+        
+        # Find teacher user by email
+        teacher_user = await db.users.find_one({"email": teacher_data.email})
+        if not teacher_user:
+            raise HTTPException(status_code=404, detail="User not found with this email")
+        
+        if teacher_user["role"] not in ["guest", "teacher"]:
+            raise HTTPException(status_code=400, detail="User cannot be assigned as teacher")
+        
+        # Check if teacher already exists for this school
+        existing_teacher = await db.teachers.find_one({
+            "user_id": teacher_user["id"],
+            "driving_school_id": school["id"]
+        })
+        if existing_teacher:
+            raise HTTPException(status_code=400, detail="Teacher already exists for this school")
+        
+        # Create teacher record
+        teacher_id = str(uuid.uuid4())
+        teacher_doc = {
+            "id": teacher_id,
+            "user_id": teacher_user["id"],
+            "driving_school_id": school["id"],
+            "driving_license_url": "",
+            "teaching_license_url": "",
+            "photo_url": teacher_user.get("profile_photo_url", ""),
+            "can_teach_male": teacher_data.can_teach_male,
+            "can_teach_female": teacher_data.can_teach_female,
+            "rating": 0.0,
+            "total_reviews": 0,
+            "is_approved": False,
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.teachers.insert_one(teacher_doc)
+        
+        # Update user role to teacher
+        await db.users.update_one(
+            {"id": teacher_user["id"]},
+            {"$set": {"role": "teacher"}}
+        )
+        
+        return {"teacher_id": teacher_id, "message": "Teacher added successfully"}
+    
+    except Exception as e:
+        logger.error(f"Add teacher error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to add teacher")
+
+@api_router.get("/teachers/my")
+async def get_my_teachers(current_user = Depends(get_current_user)):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can view teachers")
+        
+        # Get manager's school
+        school = await db.driving_schools.find_one({"manager_id": current_user["id"]})
+        if not school:
+            raise HTTPException(status_code=404, detail="Manager has no driving school")
+        
+        # Get teachers
+        teachers_cursor = db.teachers.find({"driving_school_id": school["id"]})
+        teachers = await teachers_cursor.to_list(length=None)
+        
+        # Get user details for each teacher
+        for teacher in teachers:
+            user = await db.users.find_one({"id": teacher["user_id"]})
+            if user:
+                teacher["user_details"] = {
+                    "first_name": user["first_name"],
+                    "last_name": user["last_name"],
+                    "email": user["email"],
+                    "phone": user["phone"]
+                }
+        
+        return serialize_doc(teachers)
+    
+    except Exception as e:
+        logger.error(f"Get teachers error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve teachers")
+
+@api_router.post("/teachers/{teacher_id}/approve")
+async def approve_teacher(
+    teacher_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can approve teachers")
+        
+        # Get teacher
+        teacher = await db.teachers.find_one({"id": teacher_id})
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        
+        # Verify ownership
+        school = await db.driving_schools.find_one({
+            "id": teacher["driving_school_id"],
+            "manager_id": current_user["id"]
+        })
+        if not school:
+            raise HTTPException(status_code=403, detail="Unauthorized to approve this teacher")
+        
+        # Approve teacher
+        await db.teachers.update_one(
+            {"id": teacher_id},
+            {"$set": {"is_approved": True}}
+        )
+        
+        return {"message": "Teacher approved successfully"}
+    
+    except Exception as e:
+        logger.error(f"Approve teacher error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to approve teacher")
+
+# QUIZ SYSTEM ENDPOINTS
+
+@api_router.post("/quizzes")
+async def create_quiz(
+    quiz_data: QuizCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can create quizzes")
+        
+        # Create quiz
+        quiz_id = str(uuid.uuid4())
+        quiz_doc = {
+            "id": quiz_id,
+            "course_type": quiz_data.course_type,
+            "title": quiz_data.title,
+            "description": quiz_data.description,
+            "difficulty": quiz_data.difficulty,
+            "questions": quiz_data.questions,
+            "passing_score": quiz_data.passing_score,
+            "time_limit_minutes": quiz_data.time_limit_minutes,
+            "is_active": True,
+            "created_by": current_user["id"],
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.quizzes.insert_one(quiz_doc)
+        
+        return {"quiz_id": quiz_id, "message": "Quiz created successfully"}
+    
+    except Exception as e:
+        logger.error(f"Create quiz error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to create quiz")
+
+@api_router.get("/quizzes")
+async def get_quizzes(
+    course_type: str = None,
+    difficulty: str = None,
+    current_user = Depends(get_current_user)
+):
+    try:
+        query = {"is_active": True}
+        
+        if course_type:
+            query["course_type"] = course_type
+        if difficulty:
+            query["difficulty"] = difficulty
+        
+        quizzes_cursor = db.quizzes.find(query)
+        quizzes = await quizzes_cursor.to_list(length=None)
+        
+        return serialize_doc(quizzes)
+    
+    except Exception as e:
+        logger.error(f"Get quizzes error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to retrieve quizzes")
+
+@api_router.post("/quizzes/{quiz_id}/attempt")
+async def take_quiz(
+    quiz_id: str,
+    answers: dict,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "student":
+            raise HTTPException(status_code=403, detail="Only students can take quizzes")
+        
+        # Get quiz
+        quiz = await db.quizzes.find_one({"id": quiz_id, "is_active": True})
+        if not quiz:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+        
+        # Calculate score
+        total_questions = len(quiz["questions"])
+        correct_answers = 0
+        
+        for i, question in enumerate(quiz["questions"]):
+            student_answer = answers.get(str(i))
+            correct_answer = question["correct_answer"]
+            if student_answer == correct_answer:
+                correct_answers += 1
+        
+        score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+        passed = score >= quiz["passing_score"]
+        
+        # Save attempt
+        attempt_id = str(uuid.uuid4())
+        attempt_doc = {
+            "id": attempt_id,
+            "quiz_id": quiz_id,
+            "student_id": current_user["id"],
+            "answers": answers,
+            "score": score,
+            "passed": passed,
+            "started_at": datetime.utcnow(),
+            "completed_at": datetime.utcnow(),
+            "time_taken_minutes": 0  # Would be calculated in real implementation
+        }
+        
+        await db.quiz_attempts.insert_one(attempt_doc)
+        
+        return {
+            "attempt_id": attempt_id,
+            "score": score,
+            "passed": passed,
+            "correct_answers": correct_answers,
+            "total_questions": total_questions
+        }
+    
+    except Exception as e:
+        logger.error(f"Take quiz error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to take quiz")
+
 # Include the API router
 app.include_router(api_router)
 
