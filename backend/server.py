@@ -936,8 +936,15 @@ async def register_user(
         profile_photo_url = None
         if profile_photo and profile_photo.size > 0:
             try:
-                upload_result = await upload_to_cloudinary(profile_photo, "profile_photos", "image")
-                profile_photo_url = upload_result["file_url"]
+                # Only upload if Cloudinary is properly configured
+                if (os.environ.get('CLOUDINARY_CLOUD_NAME') and 
+                    os.environ.get('CLOUDINARY_API_KEY') and 
+                    os.environ.get('CLOUDINARY_API_SECRET') and
+                    os.environ.get('CLOUDINARY_CLOUD_NAME') != 'your-cloud-name'):
+                    upload_result = await upload_to_cloudinary(profile_photo, "profile_photos", "image")
+                    profile_photo_url = upload_result["file_url"]
+                else:
+                    logger.warning("Cloudinary not configured properly, skipping photo upload")
             except Exception as e:
                 logger.warning(f"Failed to upload profile photo: {str(e)}")
         
