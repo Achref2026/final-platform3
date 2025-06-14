@@ -1,0 +1,65 @@
+{
+  "name": "Algeria Driving School Platform",
+  "short_name": "DriveSchoolDZ",
+  "description": "Complete driving education platform for Algeria with 58 wilayas support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "icon-512x512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "orientation": "portrait-primary",
+  "categories": ["education", "lifestyle"],
+  "lang": "ar",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Access your student/teacher dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Find Schools",
+      "short_name": "Schools",
+      "description": "Find driving schools in your wilaya",
+      "url": "/find-schools",
+      "icons": [{ "src": "icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Take Quiz",
+      "short_name": "Quiz",
+      "description": "Practice theory quizzes offline",
+      "url": "/quiz",
+      "icons": [{ "src": "icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshot-mobile.png", 
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}

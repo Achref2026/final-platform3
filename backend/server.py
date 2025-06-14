@@ -1,75 +1,1507 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
 import uuid
-from datetime import datetime
+import logging
+import smtplib
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict
+from pathlib import Path
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from fastapi import FastAPI, HTTPException, status, Depends, UploadFile, File, Form, APIRouter, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, EmailStr
+from motor.motor_asyncio import AsyncIOMotorClient
+from passlib.context import CryptContext
+import jwt
+from enum import Enum
+import requests
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+import aiofiles
+import json
+import qrcode
+from io import BytesIO
+import base64
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
 
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.linecharts import HorizontalLineChart
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.utils import PlotlyJSONEncoder
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+# Initialize API Router
+api_router = APIRouter()
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Configure logging
+logger = logging.getLogger(__name__)
 
-# Create the main app without a prefix
-app = FastAPI()
+# Constants
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Create a router with the /api prefix
+# Initialize FastAPI app
+app = FastAPI(title="Driving School Platform API")
+
+# Initialize API Router with /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Create demo uploads directory and mount static files
+demo_uploads_dir = Path("demo-uploads")
+demo_uploads_dir.mkdir(exist_ok=True)
+app.mount("/demo-uploads", StaticFiles(directory="demo-uploads"), name="demo-uploads")
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
-
-# Include the router in the main app
-app.include_router(api_router)
-
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Database setup
+MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+client = AsyncIOMotorClient(MONGO_URL)
+db = client.driving_school_platform
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# Security setup
+security = HTTPBearer()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+ALGORITHM = "HS256"
+
+# Daily.co API setup
+DAILY_API_KEY = os.environ.get('DAILY_API_KEY')
+DAILY_API_URL = os.environ.get('DAILY_API_URL', 'https://api.daily.co/v1')
+
+# Cloudinary setup
+cloudinary.config(
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET')
+)
+
+# Basic routes that don't need /api prefix
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "Driving School Platform API is running"}
+
+# Enums
+class UserRole(str, Enum):
+    GUEST = "guest"
+    STUDENT = "student"
+    TEACHER = "teacher"
+    MANAGER = "manager"
+    EXTERNAL_EXPERT = "external_expert"
+
+class Gender(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
+
+class CourseType(str, Enum):
+    THEORY = "theory"
+    PARK = "park"
+    ROAD = "road"
+
+class CourseStatus(str, Enum):
+    LOCKED = "locked"  # Can't start yet
+    AVAILABLE = "available"  # Can start
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class ExamStatus(str, Enum):
+    NOT_AVAILABLE = "not_available"
+    AVAILABLE = "available"
+    PASSED = "passed"
+    FAILED = "failed"
+
+class DocumentType(str, Enum):
+    PROFILE_PHOTO = "profile_photo"
+    ID_CARD = "id_card"
+    MEDICAL_CERTIFICATE = "medical_certificate"
+    DRIVING_LICENSE = "driving_license"
+    TEACHING_LICENSE = "teaching_license"
+
+class EnrollmentStatus(str, Enum):
+    PENDING_DOCUMENTS = "pending_documents"
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    COMPLETED = "completed"
+
+class QuizDifficulty(str, Enum):
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
+
+class NotificationType(str, Enum):
+    ENROLLMENT_APPROVED = "enrollment_approved"
+    ENROLLMENT_REJECTED = "enrollment_rejected"
+    SESSION_REMINDER = "session_reminder"
+    EXAM_SCHEDULED = "exam_scheduled"
+    COURSE_COMPLETED = "course_completed"
+    CERTIFICATE_READY = "certificate_ready"
+
+class NotificationPriority(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
+class NotificationChannel(str, Enum):
+    EMAIL = "email"
+    SMS = "sms"
+    PUSH = "push"
+    IN_APP = "in_app"
+
+class SessionStatus(str, Enum):
+    SCHEDULED = "scheduled"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    NO_SHOW = "no_show"
+
+class CertificateStatus(str, Enum):
+    NOT_ELIGIBLE = "not_eligible"
+    ELIGIBLE = "eligible"
+    GENERATED = "generated"
+    ISSUED = "issued"
+
+# Pydantic Models
+class UserBase(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+    phone: str
+    address: str
+    date_of_birth: str
+    gender: Gender
+
+class UserCreate(UserBase):
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class User(UserBase):
+    id: str
+    role: UserRole
+    is_active: bool = True
+    created_at: datetime
+
+class DrivingSchool(BaseModel):
+    id: str
+    name: str
+    address: str
+    state: str
+    phone: str
+    email: EmailStr
+    description: str
+    logo_url: Optional[str] = None
+    photos: List[str] = []
+    price: float
+    rating: float = 0.0
+    total_reviews: int = 0
+    manager_id: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    created_at: datetime
+
+class DrivingSchoolCreate(BaseModel):
+    name: str
+    address: str
+    state: str
+    phone: str
+    email: EmailStr
+    description: str
+    price: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+class Teacher(BaseModel):
+    id: str
+    user_id: str
+    driving_school_id: str
+    driving_license_url: str
+    teaching_license_url: str
+    photo_url: str
+    can_teach_male: bool = True
+    can_teach_female: bool = True
+    rating: float = 0.0
+    total_reviews: int = 0
+    is_approved: bool = False
+    created_at: datetime
+
+class TeacherCreate(BaseModel):
+    email: str
+    can_teach_male: bool = True
+    can_teach_female: bool = True
+
+class Enrollment(BaseModel):
+    id: str
+    student_id: str
+    driving_school_id: str
+    enrollment_status: EnrollmentStatus
+    created_at: datetime
+    approved_at: Optional[datetime] = None
+
+class EnrollmentCreate(BaseModel):
+    school_id: str
+
+class Course(BaseModel):
+    id: str
+    enrollment_id: str
+    course_type: CourseType
+    status: CourseStatus
+    teacher_id: Optional[str] = None
+    scheduled_sessions: List[dict] = []
+    completed_sessions: int = 0
+    total_sessions: int
+    exam_status: ExamStatus = ExamStatus.NOT_AVAILABLE
+    exam_score: Optional[float] = None
+    created_at: datetime
+    updated_at: datetime
+
+class DocumentUpload(BaseModel):
+    id: str
+    user_id: str
+    document_type: DocumentType
+    file_url: str
+    file_name: str
+    file_size: int
+    upload_date: datetime
+    is_verified: bool = False
+
+# New Models for Enhanced Functionality
+
+class Quiz(BaseModel):
+    id: str
+    course_type: CourseType
+    title: str
+    description: str
+    difficulty: QuizDifficulty
+    questions: List[dict]  # Array of question objects
+    passing_score: float = 70.0
+    time_limit_minutes: int = 30
+    is_active: bool = True
+    created_by: str  # manager_id
+    created_at: datetime
+
+class QuizCreate(BaseModel):
+    course_type: CourseType
+    title: str
+    description: str
+    difficulty: QuizDifficulty
+    questions: List[dict]
+    passing_score: float = 70.0
+    time_limit_minutes: int = 30
+
+class QuizAttempt(BaseModel):
+    id: str
+    quiz_id: str
+    student_id: str
+    answers: dict
+    score: float
+    passed: bool
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    time_taken_minutes: Optional[int] = None
+
+class VideoRoom(BaseModel):
+    id: str
+    course_id: str
+    teacher_id: str
+    student_id: str
+    room_url: str
+    room_name: str
+    scheduled_at: datetime
+    duration_minutes: int = 60
+    is_active: bool = True
+    daily_room_id: Optional[str] = None
+    created_at: datetime
+
+class VideoRoomCreate(BaseModel):
+    course_id: str
+    student_id: str
+    scheduled_at: str  # ISO string
+    duration_minutes: int = 60
+
+class Session(BaseModel):
+    id: str
+    course_id: str
+    teacher_id: str
+    student_id: str
+    session_type: CourseType
+    scheduled_at: datetime
+    duration_minutes: int
+    location: Optional[str] = None
+    status: SessionStatus
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class SessionCreate(BaseModel):
+    course_id: str
+    teacher_id: str
+    scheduled_at: str  # ISO string
+    duration_minutes: int = 60
+    location: Optional[str] = None
+
+class ExternalExpert(BaseModel):
+    id: str
+    user_id: str
+    specialization: List[CourseType]  # park, road
+    available_states: List[str]
+    certification_number: str
+    years_of_experience: int
+    rating: float = 0.0
+    total_exams_conducted: int = 0
+    is_available: bool = True
+    created_at: datetime
+
+class ExternalExpertCreate(BaseModel):
+    email: str
+    specialization: List[CourseType]
+    available_states: List[str]
+    certification_number: str
+    years_of_experience: int
+
+class ExamSchedule(BaseModel):
+    id: str
+    course_id: str
+    student_id: str
+    external_expert_id: str
+    exam_type: CourseType
+    scheduled_at: datetime
+    location: str
+    duration_minutes: int = 90
+    status: ExamStatus
+    score: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+class ExamScheduleCreate(BaseModel):
+    course_id: str
+    exam_type: CourseType
+    preferred_dates: List[str]  # ISO strings
+    location: str
+
+class Certificate(BaseModel):
+    id: str
+    student_id: str
+    enrollment_id: str
+    certificate_number: str
+    issue_date: datetime
+    expiry_date: Optional[datetime] = None
+    status: CertificateStatus
+    pdf_url: Optional[str] = None
+    qr_code: Optional[str] = None
+    created_at: datetime
+
+class Notification(BaseModel):
+    id: str
+    user_id: str
+    type: NotificationType
+    title: str
+    message: str
+    is_read: bool = False
+    metadata: Optional[dict] = None
+    created_at: datetime
+
+class ProgressAnalytics(BaseModel):
+    id: str
+    student_id: str
+    enrollment_id: str
+    course_type: CourseType
+    sessions_completed: int
+    total_sessions: int
+    quiz_scores: List[float] = []
+    average_score: float = 0.0
+    time_spent_minutes: int = 0
+    last_activity: datetime
+    completion_percentage: float = 0.0
+    created_at: datetime
+    updated_at: datetime
+
+class ReviewCreate(BaseModel):
+    rating: int  # 1-5 stars
+    comment: str
+    enrollment_id: str
+
+class Review(BaseModel):
+    id: str
+    student_id: str
+    enrollment_id: str
+    driving_school_id: str
+    teacher_id: Optional[str] = None
+    rating: int
+    comment: str
+    created_at: datetime
+
+# Algerian States (58 wilayas)
+ALGERIAN_STATES = [
+    "Adrar", "Chlef", "Laghouat", "Oum El Bouaghi", "Batna", "Béjaïa", "Biskra", 
+    "Béchar", "Blida", "Bouira", "Tamanrasset", "Tébessa", "Tlemcen", "Tiaret", 
+    "Tizi Ouzou", "Alger", "Djelfa", "Jijel", "Sétif", "Saïda", "Skikda", 
+    "Sidi Bel Abbès", "Annaba", "Guelma", "Constantine", "Médéa", "Mostaganem", 
+    "M'Sila", "Mascara", "Ouargla", "Oran", "El Bayadh", "Illizi", 
+    "Bordj Bou Arréridj", "Boumerdès", "El Tarf", "Tindouf", "Tissemsilt", 
+    "El Oued", "Khenchela", "Souk Ahras", "Tipaza", "Mila", "Aïn Defla", 
+    "Naâma", "Aïn Témouchent", "Ghardaïa", "Relizane", "Timimoun", 
+    "Bordj Badji Mokhtar", "Ouled Djellal", "Béni Abbès", "In Salah", 
+    "In Guezzam", "Touggourt", "Djanet", "El M'Ghair", "El Meniaa"
+]
+
+# Course sequence order
+COURSE_SEQUENCE = [CourseType.THEORY, CourseType.PARK, CourseType.ROAD]
+
+# Required documents by role
+REQUIRED_DOCUMENTS = {
+    UserRole.STUDENT: [DocumentType.PROFILE_PHOTO, DocumentType.ID_CARD, DocumentType.MEDICAL_CERTIFICATE],
+    UserRole.TEACHER: [DocumentType.PROFILE_PHOTO, DocumentType.ID_CARD, DocumentType.DRIVING_LICENSE, DocumentType.TEACHING_LICENSE],
+    UserRole.MANAGER: [DocumentType.PROFILE_PHOTO, DocumentType.ID_CARD],
+    UserRole.EXTERNAL_EXPERT: [DocumentType.PROFILE_PHOTO, DocumentType.ID_CARD, DocumentType.DRIVING_LICENSE, DocumentType.TEACHING_LICENSE]
+}
+
+# Helper functions
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def serialize_doc(doc):
+    """Convert MongoDB document to JSON serializable format"""
+    from bson import ObjectId
+    from datetime import datetime
+    
+    if doc is None:
+        return None
+    if isinstance(doc, list):
+        return [serialize_doc(item) for item in doc]
+    if isinstance(doc, dict):
+        result = {}
+        for key, value in doc.items():
+            if key == '_id':
+                continue  # Skip MongoDB _id field
+            result[key] = serialize_doc(value)
+        return result
+    if isinstance(doc, ObjectId):
+        return str(doc)  # Convert ObjectId to string
+    if isinstance(doc, datetime):
+        return doc.isoformat()  # Convert datetime to ISO string
+    return doc
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    user = await db.users.find_one({"id": user_id})
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+async def check_user_documents_complete(user_id: str, role: str) -> bool:
+    """Check if user has uploaded and verified all required documents"""
+    required_docs = REQUIRED_DOCUMENTS.get(role, [])
+    
+    documents_cursor = db.documents.find({
+        "user_id": user_id,
+        "is_verified": True,
+        "document_type": {"$in": [doc.value for doc in required_docs]}
+    })
+    documents = await documents_cursor.to_list(length=None)
+    
+    uploaded_types = {doc["document_type"] for doc in documents}
+    required_types = {doc.value for doc in required_docs}
+    
+    return required_types.issubset(uploaded_types)
+
+async def update_course_availability(enrollment_id: str):
+    """Update course availability based on completion status"""
+    courses_cursor = db.courses.find({"enrollment_id": enrollment_id}).sort("course_type", 1)
+    courses = await courses_cursor.to_list(length=None)
+    
+    # Sort courses by sequence
+    course_order = {CourseType.THEORY: 0, CourseType.PARK: 1, CourseType.ROAD: 2}
+    courses.sort(key=lambda x: course_order[x["course_type"]])
+    
+    for i, course in enumerate(courses):
+        if i == 0:  # First course (theory) is always available
+            if course["status"] == CourseStatus.LOCKED:
+                await db.courses.update_one(
+                    {"id": course["id"]},
+                    {"$set": {"status": CourseStatus.AVAILABLE, "updated_at": datetime.utcnow()}}
+                )
+        else:
+            # Check if previous course is completed and exam passed
+            prev_course = courses[i-1]
+            if prev_course["exam_status"] == ExamStatus.PASSED:
+                if course["status"] == CourseStatus.LOCKED:
+                    await db.courses.update_one(
+                        {"id": course["id"]},
+                        {"$set": {"status": CourseStatus.AVAILABLE, "updated_at": datetime.utcnow()}}
+                    )
+            else:
+                # Lock the course if previous not completed
+                if course["status"] != CourseStatus.LOCKED:
+                    await db.courses.update_one(
+                        {"id": course["id"]},
+                        {"$set": {"status": CourseStatus.LOCKED, "updated_at": datetime.utcnow()}}
+                    )
+
+async def create_sequential_courses(enrollment_id: str):
+    """Create courses with proper sequential logic"""
+    courses = []
+    course_configs = [
+        {"type": CourseType.THEORY, "sessions": 10},
+        {"type": CourseType.PARK, "sessions": 5}, 
+        {"type": CourseType.ROAD, "sessions": 15}
+    ]
+    
+    for i, course_config in enumerate(course_configs):
+        course_id = str(uuid.uuid4())
+        # Only first course (theory) is available initially
+        initial_status = CourseStatus.AVAILABLE if i == 0 else CourseStatus.LOCKED
+        
+        course_doc = {
+            "id": course_id,
+            "enrollment_id": enrollment_id,
+            "course_type": course_config["type"],
+            "status": initial_status,
+            "teacher_id": None,
+            "scheduled_sessions": [],
+            "completed_sessions": 0,
+            "total_sessions": course_config["sessions"],
+            "exam_status": ExamStatus.NOT_AVAILABLE,
+            "exam_score": None,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        courses.append(course_doc)
+    
+    await db.courses.insert_many(courses)
+    return courses
+
+# Cloudinary upload function
+async def upload_to_cloudinary(file: UploadFile, folder: str, resource_type: str = "auto"):
+    """Upload file to Cloudinary"""
+    try:
+        file_content = await file.read()
+        
+        upload_result = cloudinary.uploader.upload(
+            file_content,
+            folder=folder,
+            resource_type=resource_type,
+            public_id=f"{str(uuid.uuid4())}_{file.filename}",
+            overwrite=True
+        )
+        
+        return {
+            "file_url": upload_result["secure_url"],
+            "public_id": upload_result["public_id"],
+            "file_size": upload_result.get("bytes", 0),
+            "format": upload_result.get("format", ""),
+            "width": upload_result.get("width"),
+            "height": upload_result.get("height")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
+# Enhanced Certificate Generation Functions
+async def generate_qr_code(data: str) -> str:
+    """Generate QR code and return base64 encoded image"""
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return img_str
+
+async def create_certificate_pdf(certificate_data: dict) -> bytes:
+    """Generate a professional PDF certificate"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    
+    # Define styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.darkblue,
+        alignment=1,  # Center alignment
+        spaceAfter=30
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Heading2'],
+        fontSize=18,
+        textColor=colors.blue,
+        alignment=1,
+        spaceAfter=20
+    )
+    
+    content_style = ParagraphStyle(
+        'CustomContent',
+        parent=styles['Normal'],
+        fontSize=12,
+        alignment=1,
+        spaceAfter=10
+    )
+    
+    # Build certificate content
+    content = []
+    
+    # Certificate Header
+    content.append(Paragraph("🇩🇿 REPUBLIC OF ALGERIA", title_style))
+    content.append(Paragraph("MINISTRY OF TRANSPORT", subtitle_style))
+    content.append(Spacer(1, 20))
+    
+    # Certificate Title
+    content.append(Paragraph("DRIVING LICENSE CERTIFICATE", title_style))
+    content.append(Paragraph("شهادة رخصة القيادة", subtitle_style))
+    content.append(Spacer(1, 30))
+    
+    # Certificate Body
+    content.append(Paragraph(
+        f"This certifies that <b>{certificate_data['student_name']}</b> has successfully completed",
+        content_style
+    ))
+    content.append(Paragraph(
+        f"the comprehensive driving education program at <b>{certificate_data['school_name']}</b>",
+        content_style
+    ))
+    content.append(Spacer(1, 20))
+    
+    # Certificate Details Table
+    details_data = [
+        ['Certificate Number:', certificate_data['certificate_number']],
+        ['Issue Date:', certificate_data['issue_date'].strftime('%B %d, %Y')],
+        ['Valid Until:', certificate_data['expiry_date'].strftime('%B %d, %Y')],
+        ['Student ID:', certificate_data['student_id']],
+        ['School Location:', certificate_data['school_location']]
+    ]
+    
+    details_table = Table(details_data, colWidths=[2*inch, 3*inch])
+    details_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.lightblue),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('BACKGROUND', (1, 0), (1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    content.append(details_table)
+    content.append(Spacer(1, 30))
+    
+    # QR Code for verification
+    qr_code = await generate_qr_code(f"VERIFY:{certificate_data['certificate_number']}")
+    qr_image = Image(BytesIO(base64.b64decode(qr_code)), width=100, height=100)
+    content.append(Paragraph("Scan QR Code to Verify Certificate:", content_style))
+    content.append(qr_image)
+    content.append(Spacer(1, 20))
+    
+    # Signature section
+    content.append(Paragraph("Authorized by the Ministry of Transport, Algeria", content_style))
+    content.append(Paragraph("This certificate is valid for 5 years from the date of issue.", content_style))
+    
+    # Build PDF
+    doc.build(content)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# Enhanced Analytics Functions
+async def generate_student_analytics_chart(student_data: dict) -> str:
+    """Generate analytics charts for student progress"""
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle(f"Student Progress Analytics - {student_data['student_name']}", fontsize=16)
+    
+    # Course Progress Chart
+    courses = ['Theory', 'Park', 'Road']
+    progress = [
+        student_data.get('theory_progress', 0),
+        student_data.get('park_progress', 0),
+        student_data.get('road_progress', 0)
+    ]
+    
+    colors_list = ['#3498db', '#2ecc71', '#e74c3c']
+    ax1.bar(courses, progress, color=colors_list)
+    ax1.set_title('Course Progress (%)')
+    ax1.set_ylabel('Completion %')
+    ax1.set_ylim(0, 100)
+    
+    # Quiz Scores Over Time
+    if student_data.get('quiz_scores'):
+        quiz_dates = range(1, len(student_data['quiz_scores']) + 1)
+        ax2.plot(quiz_dates, student_data['quiz_scores'], marker='o', color='#9b59b6')
+        ax2.set_title('Quiz Scores Over Time')
+        ax2.set_xlabel('Quiz Number')
+        ax2.set_ylabel('Score (%)')
+        ax2.set_ylim(0, 100)
+    else:
+        ax2.text(0.5, 0.5, 'No Quiz Data Available', ha='center', va='center', transform=ax2.transAxes)
+        ax2.set_title('Quiz Scores')
+    
+    # Session Attendance
+    session_data = student_data.get('session_attendance', {})
+    if session_data:
+        sessions = list(session_data.keys())
+        attendance = list(session_data.values())
+        ax3.pie(attendance, labels=sessions, autopct='%1.1f%%', startangle=90)
+        ax3.set_title('Session Attendance')
+    else:
+        ax3.text(0.5, 0.5, 'No Session Data Available', ha='center', va='center', transform=ax3.transAxes)
+        ax3.set_title('Session Attendance')
+    
+    # Time Spent Learning (hours)
+    learning_time = student_data.get('learning_time', {})
+    if learning_time:
+        activities = list(learning_time.keys())
+        hours = list(learning_time.values())
+        ax4.barh(activities, hours, color='#f39c12')
+        ax4.set_title('Time Spent Learning (Hours)')
+        ax4.set_xlabel('Hours')
+    else:
+        ax4.text(0.5, 0.5, 'No Time Data Available', ha='center', va='center', transform=ax4.transAxes)
+        ax4.set_title('Learning Time')
+    
+    plt.tight_layout()
+    
+    # Save to base64
+    buffer = BytesIO()
+    plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
+    buffer.seek(0)
+    chart_base64 = base64.b64encode(buffer.getvalue()).decode()
+    plt.close()
+    
+    return chart_base64
+
+async def calculate_student_metrics(student_id: str) -> dict:
+    """Calculate comprehensive student metrics"""
+    # Get student enrollments
+    enrollments_cursor = db.enrollments.find({"student_id": student_id})
+    enrollments = await enrollments_cursor.to_list(length=None)
+    
+    metrics = {
+        "total_enrollments": len(enrollments),
+        "completed_courses": 0,
+        "total_quiz_attempts": 0,
+        "average_quiz_score": 0,
+        "total_sessions_attended": 0,
+        "certificates_earned": 0,
+        "learning_time_hours": 0,
+        "course_progress": {},
+        "quiz_scores": [],
+        "session_attendance": {},
+        "learning_time": {}
+    }
+    
+    for enrollment in enrollments:
+        # Get courses for this enrollment
+        courses_cursor = db.courses.find({"enrollment_id": enrollment["id"]})
+        courses = await courses_cursor.to_list(length=None)
+        
+        for course in courses:
+            course_type = course["course_type"]
+            progress = (course["completed_sessions"] / course["total_sessions"]) * 100 if course["total_sessions"] > 0 else 0
+            metrics["course_progress"][course_type] = progress
+            
+            if course["status"] == "completed":
+                metrics["completed_courses"] += 1
+        
+        # Get quiz attempts
+        quiz_attempts_cursor = db.quiz_attempts.find({"student_id": student_id})
+        quiz_attempts = await quiz_attempts_cursor.to_list(length=None)
+        
+        quiz_scores = [attempt["score"] for attempt in quiz_attempts]
+        metrics["total_quiz_attempts"] = len(quiz_attempts)
+        metrics["quiz_scores"] = quiz_scores
+        metrics["average_quiz_score"] = sum(quiz_scores) / len(quiz_scores) if quiz_scores else 0
+        
+        # Get sessions
+        sessions_cursor = db.sessions.find({"student_id": student_id})
+        sessions = await sessions_cursor.to_list(length=None)
+        
+        attended_sessions = [s for s in sessions if s["status"] == "completed"]
+        metrics["total_sessions_attended"] = len(attended_sessions)
+        
+        # Calculate session attendance by type
+        for session in sessions:
+            session_type = session["session_type"]
+            if session_type not in metrics["session_attendance"]:
+                metrics["session_attendance"][session_type] = 0
+            if session["status"] == "completed":
+                metrics["session_attendance"][session_type] += 1
+        
+        # Calculate learning time (estimated)
+        metrics["learning_time"] = {
+            "Theory Sessions": len([s for s in attended_sessions if s["session_type"] == "theory"]) * 1,
+            "Park Practice": len([s for s in attended_sessions if s["session_type"] == "park"]) * 1.5,
+            "Road Practice": len([s for s in attended_sessions if s["session_type"] == "road"]) * 2
+        }
+        metrics["learning_time_hours"] = sum(metrics["learning_time"].values())
+    
+    # Get certificates
+    certificates_cursor = db.certificates.find({"student_id": student_id})
+    certificates = await certificates_cursor.to_list(length=None)
+    metrics["certificates_earned"] = len(certificates)
+    
+    return metrics
+
+# API Routes
+@api_router.get("/health")
+async def api_health_check():
+    return {"status": "healthy", "message": "Driving School Platform API is running"}
+
+@api_router.get("/states")
+async def get_states():
+    return {"states": ALGERIAN_STATES}
+
+@api_router.post("/auth/register", response_model=dict)
+async def register_user(
+    email: str = Form(...),
+    password: str = Form(...),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    phone: str = Form(...),
+    address: str = Form(...),
+    date_of_birth: str = Form(...),
+    gender: str = Form(...),
+    state: str = Form(...),
+    profile_photo: Optional[UploadFile] = File(None)
+):
+    try:
+        # Validate date_of_birth format
+        try:
+            birth_date = datetime.fromisoformat(date_of_birth)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        
+        # Check if user already exists
+        existing_user = await db.users.find_one({"email": email})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Validate state
+        if state not in ALGERIAN_STATES:
+            raise HTTPException(status_code=400, detail="Invalid state")
+        
+        # Validate gender
+        if gender not in ['male', 'female']:
+            raise HTTPException(status_code=400, detail="Invalid gender")
+        
+        # Hash password
+        password_hash = pwd_context.hash(password)
+        
+        # Handle profile photo upload
+        profile_photo_url = None
+        if profile_photo and profile_photo.size > 0:
+            try:
+                upload_result = await upload_to_cloudinary(profile_photo, "profile_photos", "image")
+                profile_photo_url = upload_result["file_url"]
+            except Exception as e:
+                logger.warning(f"Failed to upload profile photo: {str(e)}")
+        
+        # Create user with default "guest" role
+        user_data = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "password_hash": password_hash,
+            "first_name": first_name,
+            "last_name": last_name,
+            "phone": phone,
+            "address": address,
+            "date_of_birth": birth_date,
+            "gender": gender,
+            "role": "guest",
+            "state": state,
+            "profile_photo_url": profile_photo_url,
+            "created_at": datetime.utcnow(),
+            "is_active": True
+        }
+        
+        await db.users.insert_one(user_data)
+        
+        # Generate access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user_data["id"]}, 
+            expires_delta=access_token_expires
+        )
+        
+        # Return user data (exclude password hash)
+        user_response = {k: v for k, v in user_data.items() if k != "password_hash"}
+        user_response = serialize_doc(user_response)
+        
+        return {
+            "message": "Registration successful",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user_response
+        }
+    
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+@api_router.post("/auth/login", response_model=dict)
+async def login_user(user_data: UserLogin):
+    try:
+        # Find user by email
+        user = await db.users.find_one({"email": user_data.email})
+        if not user or not verify_password(user_data.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        if not user.get("is_active", True):
+            raise HTTPException(status_code=401, detail="Account is disabled")
+        
+        # Generate access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user["id"]}, 
+            expires_delta=access_token_expires
+        )
+        
+        # Return user data (exclude password hash)
+        user_response = {k: v for k, v in user.items() if k != "password_hash"}
+        user_response = serialize_doc(user_response)
+        
+        return {
+            "message": "Login successful",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user_response
+        }
+    
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Login failed")
+
+@api_router.get("/driving-schools")
+async def get_driving_schools(
+    state: str = None,
+    search: str = None,
+    min_price: float = None,
+    max_price: float = None,
+    min_rating: float = None,
+    sort_by: str = "name",  # name, price, rating, newest
+    sort_order: str = "asc",  # asc, desc
+    page: int = 1,
+    limit: int = 20
+):
+    try:
+        # Build query
+        query = {}
+        
+        # State filter
+        if state:
+            query["state"] = state
+        
+        # Search filter (name, description, address)
+        if search:
+            search_regex = {"$regex": search, "$options": "i"}
+            query["$or"] = [
+                {"name": search_regex},
+                {"description": search_regex},
+                {"address": search_regex}
+            ]
+        
+        # Price range filter
+        if min_price is not None or max_price is not None:
+            price_filter = {}
+            if min_price is not None:
+                price_filter["$gte"] = min_price
+            if max_price is not None:
+                price_filter["$lte"] = max_price
+            query["price"] = price_filter
+        
+        # Rating filter
+        if min_rating is not None:
+            query["rating"] = {"$gte": min_rating}
+        
+        # Sort configuration
+        sort_field = "name"
+        if sort_by == "price":
+            sort_field = "price"
+        elif sort_by == "rating":
+            sort_field = "rating"
+        elif sort_by == "newest":
+            sort_field = "created_at"
+        
+        sort_direction = 1 if sort_order == "asc" else -1
+        
+        # Calculate pagination
+        skip = (page - 1) * limit
+        
+        # Get total count for pagination
+        total_count = await db.driving_schools.count_documents(query)
+        
+        # Fetch schools with pagination and sorting
+        schools_cursor = db.driving_schools.find(query).sort(sort_field, sort_direction).skip(skip).limit(limit)
+        schools = await schools_cursor.to_list(length=None)
+        
+        # Calculate pagination info
+        total_pages = (total_count + limit - 1) // limit
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        # Serialize the schools data
+        schools_serialized = serialize_doc(schools)
+        
+        return {
+            "schools": schools_serialized,
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_count": total_count,
+                "has_next": has_next,
+                "has_prev": has_prev,
+                "per_page": limit
+            },
+            "filters_applied": {
+                "state": state,
+                "search": search,
+                "min_price": min_price,
+                "max_price": max_price,
+                "min_rating": min_rating,
+                "sort_by": sort_by,
+                "sort_order": sort_order
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Error fetching driving schools: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch driving schools")
+
+@api_router.get("/driving-schools/search-suggestions")
+async def get_search_suggestions(q: str):
+    """Get search suggestions for driving school names"""
+    try:
+        if len(q) < 2:
+            return {"suggestions": []}
+        
+        # Get school names that match the query
+        query = {"name": {"$regex": q, "$options": "i"}}
+        schools_cursor = db.driving_schools.find(query, {"name": 1, "_id": 0}).limit(10)
+        schools = await schools_cursor.to_list(length=None)
+        
+        suggestions = [school["name"] for school in schools]
+        
+        return {"suggestions": suggestions}
+    
+    except Exception as e:
+        logger.error(f"Error getting search suggestions: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get search suggestions")
+
+@api_router.get("/driving-schools/filters/stats")
+async def get_filter_stats():
+    """Get statistics for filter options (price range, rating distribution)"""
+    try:
+        # Get price range
+        price_stats = await db.driving_schools.aggregate([
+            {
+                "$group": {
+                    "_id": None,
+                    "min_price": {"$min": "$price"},
+                    "max_price": {"$max": "$price"},
+                    "avg_price": {"$avg": "$price"}
+                }
+            }
+        ]).to_list(length=1)
+        
+        # Get rating distribution
+        rating_stats = await db.driving_schools.aggregate([
+            {
+                "$group": {
+                    "_id": {"$floor": "$rating"},
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id": 1}}
+        ]).to_list(length=None)
+        
+        # Get state distribution
+        state_stats = await db.driving_schools.aggregate([
+            {
+                "$group": {
+                    "_id": "$state",
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"count": -1}}
+        ]).to_list(length=None)
+        
+        result = {
+            "price_range": {
+                "min": price_stats[0]["min_price"] if price_stats else 0,
+                "max": price_stats[0]["max_price"] if price_stats else 100000,
+                "average": price_stats[0]["avg_price"] if price_stats else 50000
+            },
+            "rating_distribution": {str(stat["_id"]): stat["count"] for stat in rating_stats},
+            "state_distribution": state_stats[:10],  # Top 10 states
+            "total_schools": await db.driving_schools.count_documents({})
+        }
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error getting filter stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get filter statistics")
+
+@api_router.post("/enrollments")
+async def create_enrollment(
+    enrollment_data: EnrollmentCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Check if user is a guest (students can enroll)
+        if current_user["role"] not in ["guest", "student"]:
+            raise HTTPException(status_code=403, detail="Only guests and students can enroll")
+        
+        # Check if school exists
+        school = await db.driving_schools.find_one({"id": enrollment_data.school_id})
+        if not school:
+            raise HTTPException(status_code=404, detail="Driving school not found")
+        
+        # Check if user already enrolled in this school
+        existing_enrollment = await db.enrollments.find_one({
+            "student_id": current_user["id"],
+            "driving_school_id": enrollment_data.school_id,
+            "enrollment_status": {"$in": ["pending_documents", "pending_approval", "approved"]}
+        })
+        
+        if existing_enrollment:
+            raise HTTPException(status_code=400, detail="Already enrolled or have pending enrollment")
+        
+        # Create enrollment without payment requirement
+        enrollment_id = str(uuid.uuid4())
+        enrollment_doc = {
+            "id": enrollment_id,
+            "student_id": current_user["id"],
+            "driving_school_id": enrollment_data.school_id,
+            "enrollment_status": EnrollmentStatus.PENDING_DOCUMENTS,
+            "created_at": datetime.utcnow(),
+            "approved_at": None
+        }
+        
+        await db.enrollments.insert_one(enrollment_doc)
+        
+        # Update user role to student if they were a guest
+        if current_user["role"] == "guest":
+            await db.users.update_one(
+                {"id": current_user["id"]},
+                {"$set": {"role": "student"}}
+            )
+        
+        # Create sequential courses for the enrollment
+        await create_sequential_courses(enrollment_id)
+        
+        return {
+            "message": "Enrollment successful! Please upload required documents for approval.",
+            "enrollment_id": enrollment_id,
+            "status": "pending_documents"
+        }
+    
+    except Exception as e:
+        logger.error(f"Enrollment error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Enrollment failed")
+
+@api_router.get("/dashboard")
+async def get_dashboard_data(current_user = Depends(get_current_user)):
+    try:
+        dashboard_data = {
+            "user": serialize_doc(current_user),
+            "enrollments": [],
+            "courses": [],
+            "notifications": []
+        }
+        
+        # Get user's enrollments
+        enrollments_cursor = db.enrollments.find({"student_id": current_user["id"]})
+        enrollments = await enrollments_cursor.to_list(length=None)
+        
+        # Get school information for each enrollment
+        for enrollment in enrollments:
+            school = await db.driving_schools.find_one({"id": enrollment["driving_school_id"]})
+            if school:
+                enrollment["school_name"] = school["name"]
+                enrollment["school_address"] = school["address"]
+        
+        dashboard_data["enrollments"] = serialize_doc(enrollments)
+        
+        # Get courses for approved enrollments
+        if enrollments:
+            enrollment_ids = [e["id"] for e in enrollments if e["enrollment_status"] == "approved"]
+            if enrollment_ids:
+                courses_cursor = db.courses.find({"enrollment_id": {"$in": enrollment_ids}})
+                courses = await courses_cursor.to_list(length=None)
+                dashboard_data["courses"] = serialize_doc(courses)
+        
+        # Get recent notifications
+        notifications_cursor = db.notifications.find(
+            {"user_id": current_user["id"]}
+        ).sort("created_at", -1).limit(10)
+        notifications = await notifications_cursor.to_list(length=None)
+        dashboard_data["notifications"] = serialize_doc(notifications)
+        
+        return dashboard_data
+    
+    except Exception as e:
+        logger.error(f"Dashboard error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to load dashboard data")
+
+@api_router.post("/documents/upload")
+async def upload_document(
+    document_type: str = Form(...),
+    file: UploadFile = File(...),
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Validate document type
+        if document_type not in [doc.value for doc in DocumentType]:
+            raise HTTPException(status_code=400, detail="Invalid document type")
+        
+        # Upload file to Cloudinary
+        upload_result = await upload_to_cloudinary(file, f"documents/{document_type}", "auto")
+        
+        # Create document record
+        document_id = str(uuid.uuid4())
+        document_doc = {
+            "id": document_id,
+            "user_id": current_user["id"],
+            "document_type": document_type,
+            "file_url": upload_result["file_url"],
+            "file_name": file.filename,
+            "file_size": upload_result["file_size"],
+            "upload_date": datetime.utcnow(),
+            "is_verified": False  # Manager needs to verify
+        }
+        
+        await db.documents.insert_one(document_doc)
+        
+        return {
+            "message": "Document uploaded successfully",
+            "document_id": document_id,
+            "file_url": upload_result["file_url"]
+        }
+    
+    except Exception as e:
+        logger.error(f"Document upload error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Document upload failed")
+
+@api_router.get("/documents")
+async def get_user_documents(current_user = Depends(get_current_user)):
+    try:
+        documents_cursor = db.documents.find({"user_id": current_user["id"]})
+        documents = await documents_cursor.to_list(length=None)
+        
+        return {"documents": serialize_doc(documents)}
+    
+    except Exception as e:
+        logger.error(f"Get documents error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch documents")
+
+# Manager Routes
+@api_router.get("/manager/enrollments")
+async def get_pending_enrollments(current_user = Depends(get_current_user)):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can access this")
+        
+        # Get manager's driving school
+        school = await db.driving_schools.find_one({"manager_id": current_user["id"]})
+        if not school:
+            raise HTTPException(status_code=404, detail="No driving school found for this manager")
+        
+        # Get pending enrollments for the school
+        enrollments_cursor = db.enrollments.find({
+            "driving_school_id": school["id"],
+            "enrollment_status": {"$in": ["pending_documents", "pending_approval"]}
+        })
+        enrollments = await enrollments_cursor.to_list(length=None)
+        
+        # Get student information for each enrollment
+        for enrollment in enrollments:
+            student = await db.users.find_one({"id": enrollment["student_id"]})
+            if student:
+                enrollment["student_name"] = f"{student['first_name']} {student['last_name']}"
+                enrollment["student_email"] = student["email"]
+                enrollment["student_phone"] = student["phone"]
+        
+        return {"enrollments": serialize_doc(enrollments)}
+    
+    except Exception as e:
+        logger.error(f"Get enrollments error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to fetch enrollments")
+
+@api_router.post("/manager/enrollments/{enrollment_id}/approve")
+async def approve_enrollment(
+    enrollment_id: str,
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can approve enrollments")
+        
+        # Get enrollment
+        enrollment = await db.enrollments.find_one({"id": enrollment_id})
+        if not enrollment:
+            raise HTTPException(status_code=404, detail="Enrollment not found")
+        
+        # Verify manager owns this school
+        school = await db.driving_schools.find_one({
+            "id": enrollment["driving_school_id"],
+            "manager_id": current_user["id"]
+        })
+        if not school:
+            raise HTTPException(status_code=403, detail="Unauthorized to approve this enrollment")
+        
+        # Check if student has uploaded all required documents
+        documents_complete = await check_user_documents_complete(
+            enrollment["student_id"], 
+            "student"
+        )
+        
+        if not documents_complete:
+            raise HTTPException(status_code=400, detail="Student has not uploaded all required documents")
+        
+        # Approve enrollment
+        await db.enrollments.update_one(
+            {"id": enrollment_id},
+            {
+                "$set": {
+                    "enrollment_status": EnrollmentStatus.APPROVED,
+                    "approved_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Update course availability
+        await update_course_availability(enrollment_id)
+        
+        # Send notification to student
+        notification_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": enrollment["student_id"],
+            "type": NotificationType.ENROLLMENT_APPROVED,
+            "title": "Enrollment Approved!",
+            "message": f"Your enrollment at {school['name']} has been approved. You can now start your courses!",
+            "is_read": False,
+            "metadata": {"enrollment_id": enrollment_id, "school_name": school["name"]},
+            "created_at": datetime.utcnow()
+        }
+        await db.notifications.insert_one(notification_doc)
+        
+        return {"message": "Enrollment approved successfully"}
+    
+    except Exception as e:
+        logger.error(f"Approve enrollment error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to approve enrollment")
+
+@api_router.post("/manager/enrollments/{enrollment_id}/reject")
+async def reject_enrollment(
+    enrollment_id: str,
+    reason: str = Form(...),
+    current_user = Depends(get_current_user)
+):
+    try:
+        if current_user["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Only managers can reject enrollments")
+        
+        # Get enrollment
+        enrollment = await db.enrollments.find_one({"id": enrollment_id})
+        if not enrollment:
+            raise HTTPException(status_code=404, detail="Enrollment not found")
+        
+        # Verify manager owns this school
+        school = await db.driving_schools.find_one({
+            "id": enrollment["driving_school_id"],
+            "manager_id": current_user["id"]
+        })
+        if not school:
+            raise HTTPException(status_code=403, detail="Unauthorized to reject this enrollment")
+        
+        # Reject enrollment
+        await db.enrollments.update_one(
+            {"id": enrollment_id},
+            {"$set": {"enrollment_status": EnrollmentStatus.REJECTED}}
+        )
+        
+        # Send notification to student
+        notification_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": enrollment["student_id"],
+            "type": NotificationType.ENROLLMENT_REJECTED,
+            "title": "Enrollment Rejected",
+            "message": f"Your enrollment at {school['name']} was rejected. Reason: {reason}",
+            "is_read": False,
+            "metadata": {"enrollment_id": enrollment_id, "school_name": school["name"], "reason": reason},
+            "created_at": datetime.utcnow()
+        }
+        await db.notifications.insert_one(notification_doc)
+        
+        return {"message": "Enrollment rejected"}
+    
+    except Exception as e:
+        logger.error(f"Reject enrollment error: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to reject enrollment")
+
+# Include the API router
+app.include_router(api_router)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
